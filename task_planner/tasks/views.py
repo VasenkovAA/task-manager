@@ -2,7 +2,7 @@
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import (
+from tasks.models import (
     TaskCategory,
     NotificationMethod,
     Location,
@@ -11,7 +11,7 @@ from .models import (
     TaskLink,
     FileAttachment
 )
-from .serializers import (
+from tasks.serializers import (
     TaskCategorySerializer,
     NotificationMethodSerializer,
     LocationSerializer,

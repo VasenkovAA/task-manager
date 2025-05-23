@@ -4,88 +4,13 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from taggit.managers import TaggableManager
 from simple_history.models import HistoricalRecords
+from tasks.models.task_category import TaskCategory
+from tasks.models.location import Location
+from tasks.models.notification_method import NotificationMethod
+from tasks.models.link import Link
 
 User = get_user_model()
 
-class TaskCategory(models.Model):
-    name = models.CharField(
-        max_length=50,
-        unique=True,
-        error_messages={'unique': 'Категория с таким названием уже существует'},
-        help_text="Уникальное название категории"
-    )
-    description = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Описание категории задач"
-    )
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = 'Категория задач'
-        verbose_name_plural = 'Категории задач'
-
-class NotificationMethod(models.Model):
-    name = models.CharField(
-        max_length=50,
-        unique=True,
-        help_text="Название метода уведомления (например: email, telegram)"
-    )
-    config = models.JSONField(
-        default=dict,
-        help_text="Конфигурация метода уведомления в формате JSON"
-    )
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = 'Метод уведомления'
-        verbose_name_plural = 'Методы уведомления'
-
-class Location(models.Model):
-    name = models.CharField(
-        max_length=100,
-        help_text="Название места выполнения задачи"
-    )
-    address = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Полный адрес места"
-    )
-    coordinates = models.CharField(
-        max_length=50,
-        blank=True,
-        null=True,
-        help_text="Координаты в формате 'широта,долгота'"
-    )
-
-    def __str__(self):
-        return f"{self.name} ({self.coordinates})"
-
-    class Meta:
-        verbose_name = 'Местоположение'
-        verbose_name_plural = 'Местоположения'
-
-class Link(models.Model):
-    url = models.URLField(
-        max_length=500,
-        unique=True,
-        help_text="Уникальный URL-адрес"
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Дата создания ссылки"
-    )
-
-    def __str__(self):
-        return self.url
-
-    class Meta:
-        verbose_name = 'Ссылка'
-        verbose_name_plural = 'Ссылки'
 
 class Task(models.Model):
     STATUS_CHOICES = [
@@ -340,59 +265,3 @@ class Task(models.Model):
             models.Index(fields=['is_deleted', 'status']),
             models.Index(fields=['deadline']),
         ]
-
-class TaskLink(models.Model):
-    task = models.ForeignKey(
-        Task,
-        on_delete=models.CASCADE,
-        help_text="Связанная задача"
-    )
-    link = models.ForeignKey(
-        Link,
-        on_delete=models.CASCADE,
-        help_text="Связанная ссылка"
-    )
-    description = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text="Описание связи"
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Дата создания связи"
-    )
-
-    class Meta:
-        unique_together = ('task', 'link')
-        verbose_name = 'Связь задачи со ссылкой'
-        verbose_name_plural = 'Связи задач со ссылками'
-
-class FileAttachment(models.Model):
-    task = models.ForeignKey(
-        Task,
-        on_delete=models.CASCADE,
-        related_name='attachments',
-        help_text="Связанная задача"
-    )
-    file = models.FileField(
-        upload_to='task_attachments/%Y/%m/%d/',
-        help_text="Прикрепленный файл"
-    )
-    uploaded_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Время загрузки файла"
-    )
-    description = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text="Описание файла"
-    )
-
-    def __str__(self):
-        return f"Вложение {self.id} для задачи {self.task.title}"
-
-    class Meta:
-        verbose_name = 'Файловое вложение'
-        verbose_name_plural = 'Файловые вложения'

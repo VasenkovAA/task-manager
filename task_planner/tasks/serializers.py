@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import (
+from tasks.models import (
     TaskCategory,
     NotificationMethod,
     Location,
