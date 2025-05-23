@@ -58,6 +58,10 @@ class FileAttachmentSerializer(serializers.ModelSerializer):
         read_only_fields = ['uploaded_at', 'task']
 
 class TaskSerializer(serializers.ModelSerializer):
+
+    progress = serializers.IntegerField(min_value=0, max_value=100)
+    is_ready = serializers.BooleanField()
+    
     author = UserSerializer(read_only=True)
     last_editor = UserSerializer(read_only=True)
     assignee = serializers.PrimaryKeyRelatedField(

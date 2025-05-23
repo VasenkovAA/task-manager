@@ -28,9 +28,13 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path("admin/", admin.site.urls),
+
+    path('1/', views.task_form, name='task_create'),
+    path('tasks/<int:pk>/edit/', views.task_form, name='task_edit'),
+    path('2/', views.task_graph, name='task_graph'),
 ]
 

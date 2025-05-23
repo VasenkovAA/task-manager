@@ -69,3 +69,15 @@ class TaskViewSet(viewsets.ModelViewSet):
         dependency = Task.objects.get(pk=request.data['dependency_id'])
         task.dependencies.remove(dependency)
         return Response({'status': 'dependency removed'})
+    
+# views.py
+from django.shortcuts import render, get_object_or_404
+
+def task_form(request, pk=None):
+    context = {}
+    if pk:
+        context['task'] = get_object_or_404(Task, pk=pk)
+    return render(request, 'task_form.html', context)
+
+def task_graph(request):
+    return render(request, 'graf.html')
