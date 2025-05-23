@@ -94,6 +94,7 @@ class Task(models.Model):
         'self',
         symmetrical=False,
         blank=True,
+        related_name='task_dependencies',
         help_text="Задачи, от которых зависит текущая"
     )
     categories = models.ManyToManyField(
@@ -208,12 +209,16 @@ class Task(models.Model):
     
     # Специфичные поля
     time_intervals = models.JSONField(
-        default=list,
-        help_text="Временные интервалы выполнения задачи"
+        default='',
+        help_text="Временные интервалы выполнения задачи",
+        blank=True,
+        null=True,
     )
     reminders = models.JSONField(
-        default=list,
-        help_text="Напоминания о задаче"
+        default='',
+        help_text="Напоминания о задаче",
+        blank=True,
+        null=True,
     )
     repeat_interval = models.DurationField(
         blank=True,
@@ -265,3 +270,8 @@ class Task(models.Model):
             models.Index(fields=['is_deleted', 'status']),
             models.Index(fields=['deadline']),
         ]
+    
+    @property
+    def outgoing_dependencies(self):
+        """Задачи, которые зависят от текущей."""
+        return self.task_dependencies.all()

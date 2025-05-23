@@ -1,7 +1,7 @@
-# admin.py
 from django.contrib import admin
+from simple_history.admin import SimpleHistoryAdmin
 from django.utils.html import format_html
-from tasks.models import (
+from .models import (
     TaskCategory,
     NotificationMethod,
     Location,
@@ -11,125 +11,115 @@ from tasks.models import (
     FileAttachment
 )
 
+@admin.register(TaskCategory)
 class TaskCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'task_count')
-    search_fields = ('name',)
-    
-    def task_count(self, obj):
-        return obj.task_set.count()
-    task_count.short_description = 'Количество задач'
+    list_display = [field.name for field in TaskCategory._meta.fields]
+    search_fields = ['name']
 
+@admin.register(NotificationMethod)
 class NotificationMethodAdmin(admin.ModelAdmin):
-    list_display = ('name', 'config_preview')
-    search_fields = ('name',)
-    
-    def config_preview(self, obj):
-        return format_html('<code>{}</code>', str(obj.config)[:50])
-    config_preview.short_description = 'Конфигурация'
+    list_display = [field.name for field in NotificationMethod._meta.fields]
+    search_fields = ['name']
 
+@admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ('name', 'coordinates', 'address_short')
-    list_filter = ('name',)
-    search_fields = ('name', 'address')
-    
-    def address_short(self, obj):
-        return obj.address[:50] + '...' if obj.address else ''
-    address_short.short_description = 'Адрес'
+    list_display = [field.name for field in Location._meta.fields]
+    search_fields = ['name', 'address']
 
+@admin.register(Link)
 class LinkAdmin(admin.ModelAdmin):
-    list_display = ('url', 'created_at')
-    list_filter = ('created_at',)
+    list_display = [field.name for field in Link._meta.fields]
+    readonly_fields = ['created_at']
     date_hierarchy = 'created_at'
+    search_fields = ['url']  # Добавлено для автозаполнения
 
 class TaskLinkInline(admin.TabularInline):
     model = TaskLink
     extra = 1
-    raw_id_fields = ('task', 'link')
+    autocomplete_fields = ['link']  # Используем автозаполнение
 
-class FileAttachmentInline(admin.StackedInline):
+class FileAttachmentInline(admin.TabularInline):
     model = FileAttachment
     extra = 1
-    readonly_fields = ('uploaded_at',)
 
-class TaskAdmin(admin.ModelAdmin):
-    list_display = (
-        'title', 
-        'status_badge', 
-        'priority', 
-        'author', 
-        'assignee', 
-        'deadline'
-    )
-    list_filter = ('status', 'risk_level', 'is_deleted')
-    search_fields = ('title', 'description')
-    filter_horizontal = ('dependencies', 'categories', 'notifications')
-    inlines = [TaskLinkInline, FileAttachmentInline]
+@admin.register(Task)
+class TaskAdmin(SimpleHistoryAdmin):  # Используем SimpleHistoryAdmin
+    list_display = [field.name for field in Task._meta.fields if field.name not in ['description', 'history']]
+    list_display += ['get_outgoing_dependencies']
+    
+    def get_outgoing_dependencies(self, obj):
+        """Возвращает список задач, зависящих от текущей."""
+        return ", ".join([task.title for task in obj.task_dependencies.all()])
+    get_outgoing_dependencies.short_description = "Исходящие зависимости"
+
+    def get_queryset(self, request):
+        """Оптимизация запросов к БД."""
+        return super().get_queryset(request).prefetch_related('task_dependencies')
+
+
+
+    list_filter = ['status', 'priority', 'risk_level']
+    search_fields = ['title', 'description']
+    readonly_fields = ['created_at', 'updated_at', 'deleted_at', 'version', 'get_outgoing_dependencies']
     date_hierarchy = 'deadline'
-    readonly_fields = (
-        'created_at', 
-        'updated_at', 
-        'deleted_at', 
-        'version', 
-        'history'
-    )
+    filter_horizontal = ['dependencies', 'categories', 'notifications']
+    raw_id_fields = ['author', 'last_editor', 'assignee']
+    inlines = [TaskLinkInline, FileAttachmentInline]
+
     fieldsets = (
         ('Основное', {
             'fields': (
-                'title', 
-                'description', 
-                ('priority', 'complexity'), 
-                'status'
+                'title', 'description', 'priority', 'status', 'progress',
             )
         }),
         ('Временные параметры', {
             'fields': (
-                ('start_date', 'end_date'), 
-                'deadline', 
-                'repeat_interval'
+                ('start_date', 'end_date'),
+                'deadline',
+                ('created_at', 'updated_at', 'deleted_at'),
+            )
+        }),
+        ('Связи', {
+            'fields': (
+                'dependencies','get_outgoing_dependencies', 'categories', 'location'
             )
         }),
         ('Ответственные', {
-            'fields': ('author', 'last_editor', 'assignee')
-        }),
-        ('Дополнительно', {
             'fields': (
-                # Убрали is_deleted из fields
-                'version', 
-                'created_at', 
-                'updated_at', 
-                'deleted_at'
+                'author', 'assignee'
             )
         }),
+        ('Дополнительные параметры', {
+            'fields': (
+                'complexity', 'risk_level', 'estimated_time', 'actual_time',
+                'budget', 'quality_rating', 'time_intervals', 'reminders'
+            )
+        }),
+        ('Флаги', {
+            'fields': (
+                'is_ready', 'is_recurring', 'needs_approval',
+                'is_template',
+            )
+        }),
+        ('Повторение', {
+            'fields': (
+                'repeat_interval', 'next_activation'
+            )
+        }),
+        ('Системное', {
+            'fields': ('tags',)
+        })
     )
-    
-    def status_badge(self, obj):
-        colors = {
-            'waiting': 'gray',
-            'progress': 'blue',
-            'done': 'green',
-            'canceled': 'red'
-        }
-        return format_html(
-            '<span style="color: white; background: {}; padding: 2px 5px; border-radius: 3px">{}</span>',
-            colors[obj.status],
-            obj.get_status_display()
-        )
-    status_badge.short_description = 'Статус'
-    
-    actions = ['mark_as_done', 'soft_delete']
-    
-    @admin.action(description='Пометить как выполненное')
-    def mark_as_done(self, request, queryset):
-        queryset.update(status='done', progress=100)
-    
-    @admin.action(description='Мягкое удаление')
-    def soft_delete(self, request, queryset):
-        queryset.update(is_deleted=True)
 
-admin.site.register(TaskCategory, TaskCategoryAdmin)
-admin.site.register(NotificationMethod, NotificationMethodAdmin)
-admin.site.register(Location, LocationAdmin)
-admin.site.register(Link, LinkAdmin)
-admin.site.register(Task, TaskAdmin)
-admin.site.register(TaskLink)
-admin.site.register(FileAttachment)
+@admin.register(TaskLink)
+class TaskLinkAdmin(admin.ModelAdmin):
+    list_display = [field.name for field in TaskLink._meta.fields]
+    autocomplete_fields = ['task', 'link']  # Исправлено
+    readonly_fields = ['created_at']
+    search_fields = ['task__title', 'link__url']  # Добавлено для автозаполнения
+
+@admin.register(FileAttachment)
+class FileAttachmentAdmin(admin.ModelAdmin):
+    list_display = [field.name for field in FileAttachment._meta.fields]
+    readonly_fields = ['uploaded_at']
+    search_fields = ['task__title']
