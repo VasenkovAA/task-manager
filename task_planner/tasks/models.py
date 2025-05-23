@@ -309,7 +309,6 @@ class Task(models.Model):
     history = HistoricalRecords(
         excluded_fields=['version', 'is_deleted', 'deleted_at'],
         inherit=True,
-        help_text="История изменений задачи"
     )
     
     # Связи ManyToMany
