@@ -33,31 +33,134 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Шаблон узла
-        diagram.nodeTemplate =
-        $(go.Node, "Auto",
-            {
-                cursor: "pointer",
-                doubleClick: (e, node) => {
-                    window.location.href = `/tasks/${node.data.key}/edit/`;
-                }
+diagram.nodeTemplate =
+    $(go.Node, "Auto",
+        {
+            cursor: "pointer",
+            doubleClick: (e, node) => {
+                window.location.href = `/tasks/${node.data.key}/edit/`;
+            }
+        },
+        // Основная форма узла с условными стилями
+        $(go.Shape, "Rectangle", 
+            { 
+                fill: "#FFFFFF",  // Базовый цвет фона
+                strokeWidth: 2,
+                portId: ""
             },
-            $(go.Shape, "Rectangle", 
-                { 
-                    fill: "#1F4963", 
-                    stroke: null,
-                    portId: ""
-                }),
-            $(go.Panel, "Vertical",
+            // Условные стили для статуса
+            new go.Binding("fill", "is_ready", r => r ? "#E8F5E9" : "#FFFFFF"),
+            new go.Binding("stroke", "status", s => {
+                switch(s) {
+                    case 'waiting': return '#FFEB3B';
+                    case 'in_progress': return '#2196F3';
+                    case 'completed': return '#4CAF50';
+                    default: return '#1F4963';
+                }
+            })
+        ),
+        
+        $(go.Panel, "Vertical",
+            { margin: 8 },
+            // Заголовок задачи
+            $(go.TextBlock,
+                {
+                    font: "bold 14px Segoe UI",
+                    stroke: "#1F4963",
+                    margin: new go.Margin(0, 0, 4, 0),
+                    wrap: go.TextBlock.WrapFit,
+                    maxSize: new go.Size(200, NaN)
+                },
+                new go.Binding("text", "title")),
+            
+            // Строка статуса и дедлайна
+            $(go.Panel, "Horizontal",
                 $(go.TextBlock,
                     {
-                        font: "bold 13px Helvetica, Arial, sans-serif",
-                        stroke: "white",
-                        margin: 3,
-                        click: (e, obj) => {
-                            window.open(`/tasks/${obj.part.data.key}/`, '_blank');
-                        }
+                        font: "italic 11px Segoe UI",
+                        stroke: "#666",
+                        margin: new go.Margin(0, 10, 0, 0)
                     },
-                    new go.Binding("text", "key"))
+                    new go.Binding("text", "status", s => `Статус: ${s.toUpperCase()}`)),
+                
+                $(go.TextBlock,
+                    {
+                        font: "11px Segoe UI",
+                        stroke: "#E91E63",
+                        visible: false
+                    },
+                    new go.Binding("visible", "deadline", d => d !== null),
+                    new go.Binding("text", "deadline", d => `📅 ${new Date(d).toLocaleDateString()}`))
+            ),
+            
+            // Прогресс и уровень риска
+            $(go.Panel, "Horizontal",
+                { stretch: go.GraphObject.Horizontal },
+                // Прогресс-бар
+                $(go.Panel, "Horizontal",
+                    { width: 80, height: 8 },
+                    $(go.Shape, "Rectangle",
+                        {
+                            fill: "#EEE",
+                            stroke: null,
+                            width: 80,
+                            height: 8
+                        }),
+                    $(go.Shape, "Rectangle",
+                        {
+                            fill: "#4CAF50",
+                            stroke: null,
+                            width: 0,
+                            height: 8,
+                            alignment: go.Spot.Left
+                        },
+                        new go.Binding("width", "progress", p => (p)*1))
+                ),
+                
+                // Уровень риска
+                $(go.TextBlock,
+                    {
+                        font: "bold 11px Segoe UI",
+                        margin: new go.Margin(0, 0, 0, 10)
+                    },
+                    new go.Binding("text", "risk_level", l => `РИСК: ${l.toUpperCase()}`),
+                    new go.Binding("stroke", "risk_level", l => {
+                        switch(l) {
+                            case 'high': return '#F44336';
+                            case 'medium': return '#FF9800';
+                            default: return '#4CAF50';
+                        }
+                    })),
+                $(go.TextBlock,
+                    {
+                        font: "11px Segoe UI",
+                        stroke: "#666",
+                        margin: new go.Margin(0, 0, 0, 5)
+                    },
+                    new go.Binding("text", "dependencyProgress", p => `${Math.round(p * 100)}% выполнено`))
+            ),
+            ),
+            
+            // Иконки дополнительных свойств
+            $(go.Panel, "Horizontal",
+                { margin: new go.Margin(5, 0, 0, 0) },
+                $(go.TextBlock,
+                    {
+                        font: "11px Segoe UI",
+                        stroke: "#9C27B0",
+                        visible: false
+                    },
+                    new go.Binding("visible", "is_recurring"),
+                    new go.Binding("text", "is_recurring", r => r ? "🔄 Повторяемая" : "")),
+                
+                $(go.TextBlock,
+                    {
+                        font: "11px Segoe UI",
+                        stroke: "#3F51B5",
+                        visible: false
+                    },
+                    new go.Binding("visible", "categories", c => c.length > 0),
+                    new go.Binding("text", "categories", c => `🏷️ ${c.join(', ')}`))
             )
         );
 
@@ -77,15 +180,43 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await axios.get('/api/tasks/');
             const tasks = response.data;
             
+            const taskMap = new Map(tasks.map(task => [task.id, task]));
+            
             const nodes = [];
             const links = [];
             
             
 
             tasks.forEach(task => {
+                // Рассчитываем прогресс зависимостей
+            let completed = 0;
+            if (task.dependencies && task.dependencies.length > 0) {
+                task.dependencies.forEach(depId => {
+                    const depTask = taskMap.get(depId);
+                    if (depTask && depTask.status === 'done') completed++;
+                });
+            }
+
                 nodes.push({
                     key: task.id,
-                    name: task.title // Убедитесь, что API возвращает title
+                    title: task.title,
+                    status: task.status,
+                    priority: task.priority,
+                    risk_level: task.risk_level,
+                    progress: task.progress,
+                    author: {
+                        username: task.author?.username || 'не указан'
+                    },
+                    created_at: task.created_at,
+                    parent: task.parent ? task.parent.toString() : null,
+
+                    dependencyProgress: task.dependencies.length > 0 ? completed / task.dependencies.length : 1, // 100% если нет зависимостей
+            
+                    // Дополнительные поля при необходимости:
+                    is_ready: task.is_ready,
+                    complexity: task.complexity,
+                    start_date: task.start_date,
+                    end_date: task.end_date
                 });
 
                 // Строим связи из dependencies
