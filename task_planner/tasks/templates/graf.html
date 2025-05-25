@@ -15,22 +15,25 @@
     </div>
 </div>
 
-<!-- Подключаем GoJS -->
 <script src="https://unpkg.com/gojs/release/go.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const $ = go.GraphObject.make;
     
-    // Инициализация диаграммы
+    // Инициализация диаграммы с TreeLayout
     const diagram = $(go.Diagram, "diagramDiv", {
         initialContentAlignment: go.Spot.Center,
         "undoManager.isEnabled": true,
-        layout: $(go.ForceDirectedLayout)
+        layout: $(go.TreeLayout, { 
+            
+            nodeSpacing: 20,
+ 
+        })
     });
 
-    // Определение шаблона узла
-    diagram.nodeTemplate =
+    // Шаблон узла
+        diagram.nodeTemplate =
         $(go.Node, "Auto",
             {
                 cursor: "pointer",
@@ -38,90 +41,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.location.href = `/tasks/${node.data.key}/edit/`;
                 }
             },
-            $(go.Shape, "RoundedRectangle", 
+            $(go.Shape, "Rectangle", 
                 { 
-                    fill: "#fff", 
-                    stroke: "#4CAF50",
-                    strokeWidth: 2,
+                    fill: "#1F4963", 
+                    stroke: null,
                     portId: ""
-                },
-                new go.Binding("fill", "color"),
-                new go.Binding("stroke", "borderColor")),
+                }),
             $(go.Panel, "Vertical",
-                { margin: 8 },
-                // Заголовок задачи
                 $(go.TextBlock,
-                    { 
-                        font: "bold 14px Segoe UI",
-                        stroke: "#333",
-                        margin: new go.Margin(0, 0, 4, 0)
+                    {
+                        font: "bold 13px Helvetica, Arial, sans-serif",
+                        stroke: "white",
+                        margin: 3,
+                        click: (e, obj) => {
+                            window.open(`/tasks/${obj.part.data.key}/`, '_blank');
+                        }
                     },
-                    new go.Binding("text", "name")),
-                
-                // Статус
-                $(go.TextBlock,
-                    { 
-                        font: "12px Segoe UI",
-                        stroke: "#666",
-                        margin: new go.Margin(0, 0, 2, 0)
-                    },
-                    new go.Binding("text", "status", s => `Статус: ${s.toUpperCase()}`)),
-                
-                // Прогресс
-                $(go.Panel, "Horizontal",
-                    { stretch: go.GraphObject.Horizontal },
-                    $(go.Panel, "Horizontal",  // Добавлен контейнер для прогресс-бара
-                        { width: 60, height: 12 },
-                        $(go.Shape, "Rectangle",  // Фон прогресс-бара
-                            {
-                                name: "BG",
-                                fill: "#e0e0e0",
-                                stroke: null,
-                                width: 60,
-                                height: 12
-                            }),
-                        $(go.Shape, "Rectangle",  // Сам прогресс
-                            {
-                                name: "PROGRESS",
-                                fill: "#4CAF50",
-                                stroke: null,
-                                width: 0,
-                                height: 12,
-                                alignment: go.Spot.Left
-                            },
-                            new go.Binding("width", "progress", p => (p/100)*60))
-                    ),
-                    $(go.TextBlock,
-                        { 
-                            font: "12px Segoe UI",
-                            stroke: "#666",
-                            margin: new go.Margin(0, 0, 0, 5)
-                        },
-                        new go.Binding("text", "progress", p => `${p}%`))
-                ),
-                
-                // Флаг готовности
-                $(go.TextBlock,
-                    { 
-                        font: "italic 12px Segoe UI",
-                        stroke: "#2196F3",
-                        visible: false
-                    },
-                    new go.Binding("visible", "is_ready"),
-                    new go.Binding("text", "is_ready", r => r ? "Готова к выполнению ✓" : ""))
+                    new go.Binding("text", "key"))
             )
         );
 
-    // Определение шаблона связи
     diagram.linkTemplate =
         $(go.Link,
-            { 
-                routing: go.Link.AvoidsNodes,
-                curve: go.Link.JumpOver,
-                corner: 5
+            {
+                curve: go.Curve.Bezier,
+                toEndSegmentLength: 30,
+                fromEndSegmentLength: 30
             },
-            $(go.Shape, { stroke: "#999", strokeWidth: 2 }),
-            $(go.Shape, { toArrow: "Standard", stroke: "#999" })
+            $(go.Shape, { strokeWidth: 1.5 })
         );
 
     // Загрузка данных
@@ -133,25 +80,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const nodes = [];
             const links = [];
             
+            
+
             tasks.forEach(task => {
-                let color = "#fff";
-                let borderColor = "#4CAF50";
-                switch(task.status) {
-                    case 'done': color = "#E8F5E9"; break;
-                    case 'progress': color = "#FFF3E0"; borderColor = "#FFA726"; break;
-                    case 'canceled': color = "#FFEBEE"; borderColor = "#EF5350"; break;
-                }
-                
                 nodes.push({
                     key: task.id,
-                    name: task.title,
-                    status: task.status,
-                    progress: task.progress || 0,
-                    is_ready: task.is_ready,
-                    color: color,
-                    borderColor: borderColor
+                    name: task.title // Убедитесь, что API возвращает title
                 });
 
+                // Строим связи из dependencies
                 task.dependencies.forEach(depId => {
                     links.push({
                         from: depId,
@@ -160,12 +97,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
 
-            diagram.model = new go.GraphLinksModel(nodes, links);
+            // Используем GraphLinksModel вместо TreeModel
+            diagram.model = new go.GraphLinksModel({
+                nodeDataArray: nodes,
+                linkDataArray: links
+            });
+
         } catch (error) {
             console.error('Ошибка загрузки данных:', error);
         }
     }
-    
 
     // Управление масштабом
     document.getElementById('zoomIn').addEventListener('click', () => diagram.commandHandler.increaseZoom());
