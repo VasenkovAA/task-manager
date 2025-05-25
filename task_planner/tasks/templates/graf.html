@@ -15,7 +15,6 @@
     </div>
 </div>
 
-<!-- Подключаем GoJS -->
 <script src="https://unpkg.com/gojs/release/go.js"></script>
 
 <script>
@@ -29,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
         layout: $(go.ForceDirectedLayout)
     });
 
-    // Определение шаблона узла
+    // Шаблон узла
     diagram.nodeTemplate =
         $(go.Node, "Auto",
             {
@@ -39,8 +38,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             $(go.Shape, "RoundedRectangle", 
-                { 
-                    fill: "#fff", 
+                {
+                    fill: "#fff",
                     stroke: "#4CAF50",
                     strokeWidth: 2,
                     portId: ""
@@ -49,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 new go.Binding("stroke", "borderColor")),
             $(go.Panel, "Vertical",
                 { margin: 8 },
-                // Заголовок задачи
+                // Заголовок
                 $(go.TextBlock,
                     { 
                         font: "bold 14px Segoe UI",
@@ -70,9 +69,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Прогресс
                 $(go.Panel, "Horizontal",
                     { stretch: go.GraphObject.Horizontal },
-                    $(go.Panel, "Horizontal",  // Добавлен контейнер для прогресс-бара
+                    $(go.Panel, "Horizontal",
                         { width: 60, height: 12 },
-                        $(go.Shape, "Rectangle",  // Фон прогресс-бара
+                        $(go.Shape, "Rectangle",  // Фон
                             {
                                 name: "BG",
                                 fill: "#e0e0e0",
@@ -80,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 width: 60,
                                 height: 12
                             }),
-                        $(go.Shape, "Rectangle",  // Сам прогресс
+                        $(go.Shape, "Rectangle",  // Индикатор прогресса
                             {
                                 name: "PROGRESS",
                                 fill: "#4CAF50",
@@ -112,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
             )
         );
 
-    // Определение шаблона связи
+    // Шаблон связи
     diagram.linkTemplate =
         $(go.Link,
             { 
@@ -137,9 +136,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 let color = "#fff";
                 let borderColor = "#4CAF50";
                 switch(task.status) {
-                    case 'done': color = "#E8F5E9"; break;
-                    case 'progress': color = "#FFF3E0"; borderColor = "#FFA726"; break;
-                    case 'canceled': color = "#FFEBEE"; borderColor = "#EF5350"; break;
+                    case 'done': 
+                        color = "#E8F5E9";
+                        break;
+                    case 'progress': 
+                        color = "#FFF3E0";
+                        borderColor = "#FFA726";
+                        break;
+                    case 'canceled': 
+                        color = "#FFEBEE";
+                        borderColor = "#EF5350";
+                        break;
                 }
                 
                 nodes.push({
@@ -165,7 +172,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Ошибка загрузки данных:', error);
         }
     }
-    
 
     // Управление масштабом
     document.getElementById('zoomIn').addEventListener('click', () => diagram.commandHandler.increaseZoom());
