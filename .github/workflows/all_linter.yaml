@@ -87,7 +87,7 @@ jobs:
         run: pip install djlint
 
       - name: Django templates check
-        run: djlint ./task/templates --lint
+        run: djlint ./tasks/templates --lint
 
   check_migrations:
     runs-on: ubuntu-latest
@@ -102,7 +102,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.dev.txt
+        pip install -r requirements.txt
     - name: Check for new migrations
       run: |
         python manage.py makemigrations --dry-run --check || (echo "Error: New migrations detected. Please run 'makemigrations' and commit them." && exit 1)
