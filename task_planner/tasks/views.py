@@ -106,4 +106,4 @@ def task_form(request, pk=None):
     return render(request, 'task_form.html', context)
 
 def task_graph(request):
-    return render(request, 'graf.html')
+    return render(request, 'graph.html')
