@@ -91,13 +91,37 @@ class TaskSerializer(serializers.ModelSerializer):
     status = serializers.ChoiceField(choices=Task.STATUS_CHOICES)
     risk_level = serializers.ChoiceField(choices=Task.RISK_LEVEL_CHOICES)
 
+    completed_dependencies_percentage = serializers.IntegerField(
+        read_only=True,
+        help_text="Процент выполненных зависимых задач (только для чтения)"
+    )
+    tags = serializers.SerializerMethodField(
+        help_text="Список тегов задачи"
+    )
+    
+
+    def get_tags(self, obj):
+        """Возвращает список названий тегов вместо менеджера тегов"""
+        return list(obj.tags.names())
+    
+
     class Meta:
         model = Task
-        fields = '__all__'
+        fields = [
+            'id', 'title', 'description', 'priority', 'status', 'progress',
+            'created_at', 'updated_at', 'start_date', 'end_date', 'deadline',
+            'dependencies', 'categories', 'location', 'author', 'last_editor',
+            'assignee', 'complexity', 'risk_level', 'is_ready', 'is_recurring',
+            'needs_approval', 'is_template', 'estimated_time', 'actual_time',
+            'quality_rating', 'version', 'budget', 'cancel_reason',
+            'time_intervals', 'reminders', 'repeat_interval', 'next_activation',
+            'tags', 'notifications', 'links', 'attachments',
+            'completed_dependencies_percentage', 'tags'
+        ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'deleted_at', 
             'version', 'is_deleted', 'author', 'last_editor', 
-            'attachments', 'history'
+            'attachments', 'history', 'completed_dependencies_percentage', 'tags'
         ]
 
     def create(self, validated_data):

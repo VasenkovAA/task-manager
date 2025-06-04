@@ -137,7 +137,7 @@ diagram.nodeTemplate =
                         stroke: "#666",
                         margin: new go.Margin(0, 0, 0, 5)
                     },
-                    new go.Binding("text", "dependencyProgress", p => `${Math.round(p * 100)}% выполнено`))
+                    new go.Binding("text", "dependencyProgress", p => `${Math.round(p)}% выполнено`))
             ),
             ),
             
@@ -210,7 +210,7 @@ diagram.nodeTemplate =
                     created_at: task.created_at,
                     parent: task.parent ? task.parent.toString() : null,
 
-                    dependencyProgress: task.dependencies.length > 0 ? completed / task.dependencies.length : 1, // 100% если нет зависимостей
+                    dependencyProgress: task.completed_dependencies_percentage, // 100% если нет зависимостей
             
                     // Дополнительные поля при необходимости:
                     is_ready: task.is_ready,
