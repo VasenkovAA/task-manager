@@ -8,6 +8,7 @@
             <button class="btn btn-sm btn-outline-secondary" id="zoomIn">+</button>
             <button class="btn btn-sm btn-outline-secondary" id="zoomOut">-</button>
             <button class="btn btn-sm btn-outline-primary" id="fit">Авторазмер</button>
+            <button class="btn btn-sm btn-outline-info" id="settingsBtn">Настройки</button>
         </div>
     </div>
     <div class="card-body">
@@ -15,236 +16,320 @@
     </div>
 </div>
 
+<!-- Модальное окно настроек -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Настройки отображения</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="graphSettingsForm">
+                    <div class="mb-3">
+                        <label class="form-label">Цвет фона:</label>
+                        <input type="color" class="form-control form-control-color" id="nodeBackground" value="#ffffff">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Цвета границ:</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Просрочено:</label>
+                                <input type="color" class="form-control form-control-color" id="overdueColor" value="#ff0000">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Выполнено:</label>
+                                <input type="color" class="form-control form-control-color" id="doneColor" value="#00ff00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Ожидание:</label>
+                                <input type="color" class="form-control form-control-color" id="waitingColor" value="#ffff00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Отменено:</label>
+                                <input type="color" class="form-control form-control-color" id="canceledColor" value="#cccccc">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">В процессе:</label>
+                                <input type="color" class="form-control form-control-color" id="inProgressColor" value="#00ffff">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Отображаемые поля:</h6>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showTitle" checked disabled>
+                            <label class="form-check-label">Название задачи</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showProgress" checked>
+                            <label class="form-check-label">% выполненных зависимостей</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showStatus" checked>
+                            <label class="form-check-label">Статус</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" id="saveSettings">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://unpkg.com/gojs/release/go.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const $ = go.GraphObject.make;
-    
-    // Инициализация диаграммы с TreeLayout
-    const diagram = $(go.Diagram, "diagramDiv", {
-        initialContentAlignment: go.Spot.Center,
-        "undoManager.isEnabled": true,
-        layout: $(go.TreeLayout, { 
-            
-            nodeSpacing: 20,
- 
-        })
-    });
-
-    // Шаблон узла
-diagram.nodeTemplate =
-    $(go.Node, "Auto",
-        {
-            cursor: "pointer",
-            doubleClick: (e, node) => {
-                window.location.href = `/tasks/${node.data.key}/edit/`;
-            }
+    // Настройки по умолчанию
+    const defaultSettings = {
+        nodeBackground: "#FFFFFF",
+        borderColors: {
+            overdue: "#FF0000",
+            done: "#00FF00",
+            waiting: "#FFFF00",
+            canceled: "#CCCCCC",
+            in_progress: "#00FFFF"
         },
-        // Основная форма узла с условными стилями
-        $(go.Shape, "Rectangle", 
-            { 
-                fill: "#FFFFFF",  // Базовый цвет фона
-                strokeWidth: 2,
-                portId: ""
-            },
-            // Условные стили для статуса
-            new go.Binding("fill", "is_ready", r => r ? "#E8F5E9" : "#FFFFFF"),
-            new go.Binding("stroke", "status", s => {
-                switch(s) {
-                    case 'waiting': return '#FFEB3B';
-                    case 'in_progress': return '#2196F3';
-                    case 'completed': return '#4CAF50';
-                    default: return '#1F4963';
+        showFields: {
+            progress: true,
+            status: true
+        }
+    };
+
+    // Текущие настройки (будут переопределены)
+    let currentSettings = {...defaultSettings};
+
+    // Загрузка настроек пользователя
+    function loadUserSettings() {
+        {% if request.user.is_authenticated %}
+        axios.get('/api/users/{{ request.user.id }}/')
+            .then(response => {
+                if (response.data.task_graph_settings) {
+                    currentSettings = {
+                        ...defaultSettings,
+                        ...response.data.task_graph_settings
+                    };
+                    applySettingsToForm();
                 }
             })
-        ),
-        
-        $(go.Panel, "Vertical",
-            { margin: 8 },
-            // Заголовок задачи
-            $(go.TextBlock,
-                {
-                    font: "bold 14px Segoe UI",
-                    stroke: "#1F4963",
-                    margin: new go.Margin(0, 0, 4, 0),
-                    wrap: go.TextBlock.WrapFit,
-                    maxSize: new go.Size(200, NaN)
-                },
-                new go.Binding("text", "title")),
-            
-            // Строка статуса и дедлайна
-            $(go.Panel, "Horizontal",
-                $(go.TextBlock,
-                    {
-                        font: "italic 11px Segoe UI",
-                        stroke: "#666",
-                        margin: new go.Margin(0, 10, 0, 0)
-                    },
-                    new go.Binding("text", "status", s => `Статус: ${s.toUpperCase()}`)),
-                
-                $(go.TextBlock,
-                    {
-                        font: "11px Segoe UI",
-                        stroke: "#E91E63",
-                        visible: false
-                    },
-                    new go.Binding("visible", "deadline", d => d !== null),
-                    new go.Binding("text", "deadline", d => `📅 ${new Date(d).toLocaleDateString()}`))
-            ),
-            
-            // Прогресс и уровень риска
-            $(go.Panel, "Horizontal",
-                { stretch: go.GraphObject.Horizontal },
-                // Прогресс-бар
-                $(go.Panel, "Horizontal",
-                    { width: 80, height: 8 },
-                    $(go.Shape, "Rectangle",
-                        {
-                            fill: "#EEE",
-                            stroke: null,
-                            width: 80,
-                            height: 8
-                        }),
-                    $(go.Shape, "Rectangle",
-                        {
-                            fill: "#4CAF50",
-                            stroke: null,
-                            width: 0,
-                            height: 8,
-                            alignment: go.Spot.Left
-                        },
-                        new go.Binding("width", "progress", p => (p)*1))
-                ),
-                
-                // Уровень риска
-                $(go.TextBlock,
-                    {
-                        font: "bold 11px Segoe UI",
-                        margin: new go.Margin(0, 0, 0, 10)
-                    },
-                    new go.Binding("text", "risk_level", l => `РИСК: ${l.toUpperCase()}`),
-                    new go.Binding("stroke", "risk_level", l => {
-                        switch(l) {
-                            case 'high': return '#F44336';
-                            case 'medium': return '#FF9800';
-                            default: return '#4CAF50';
-                        }
-                    })),
-                $(go.TextBlock,
-                    {
-                        font: "11px Segoe UI",
-                        stroke: "#666",
-                        margin: new go.Margin(0, 0, 0, 5)
-                    },
-                    new go.Binding("text", "dependencyProgress", p => `${Math.round(p)}% выполнено`))
-            ),
-            ),
-            
-            // Иконки дополнительных свойств
-            $(go.Panel, "Horizontal",
-                { margin: new go.Margin(5, 0, 0, 0) },
-                $(go.TextBlock,
-                    {
-                        font: "11px Segoe UI",
-                        stroke: "#9C27B0",
-                        visible: false
-                    },
-                    new go.Binding("visible", "is_recurring"),
-                    new go.Binding("text", "is_recurring", r => r ? "🔄 Повторяемая" : "")),
-                
-                $(go.TextBlock,
-                    {
-                        font: "11px Segoe UI",
-                        stroke: "#3F51B5",
-                        visible: false
-                    },
-                    new go.Binding("visible", "categories", c => c.length > 0),
-                    new go.Binding("text", "categories", c => `🏷️ ${c.join(', ')}`))
-            )
-        );
-
-    diagram.linkTemplate =
-        $(go.Link,
-            {
-                curve: go.Curve.Bezier,
-                toEndSegmentLength: 30,
-                fromEndSegmentLength: 30
-            },
-            $(go.Shape, { strokeWidth: 1.5 })
-        );
-
-    // Загрузка данных
-    async function loadTasks() {
-        try {
-            const response = await axios.get('/api/tasks/');
-            const tasks = response.data;
-            
-            const taskMap = new Map(tasks.map(task => [task.id, task]));
-            
-            const nodes = [];
-            const links = [];
-            
-            
-
-            tasks.forEach(task => {
-                // Рассчитываем прогресс зависимостей
-            let completed = 0;
-            if (task.dependencies && task.dependencies.length > 0) {
-                task.dependencies.forEach(depId => {
-                    const depTask = taskMap.get(depId);
-                    if (depTask && depTask.status === 'done') completed++;
-                });
-            }
-
-                nodes.push({
-                    key: task.id,
-                    title: task.title,
-                    status: task.status,
-                    priority: task.priority,
-                    risk_level: task.risk_level,
-                    progress: task.progress,
-                    author: {
-                        username: task.author?.username || 'не указан'
-                    },
-                    created_at: task.created_at,
-                    parent: task.parent ? task.parent.toString() : null,
-
-                    dependencyProgress: task.completed_dependencies_percentage, // 100% если нет зависимостей
-            
-                    // Дополнительные поля при необходимости:
-                    is_ready: task.is_ready,
-                    complexity: task.complexity,
-                    start_date: task.start_date,
-                    end_date: task.end_date
-                });
-
-                // Строим связи из dependencies
-                task.dependencies.forEach(depId => {
-                    links.push({
-                        from: depId,
-                        to: task.id
-                    });
-                });
+            .catch(error => {
+                console.error('Ошибка загрузки настроек:', error);
             });
-
-            // Используем GraphLinksModel вместо TreeModel
-            diagram.model = new go.GraphLinksModel({
-                nodeDataArray: nodes,
-                linkDataArray: links
-            });
-
-        } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
-        }
+        {% endif %}
     }
 
-    // Управление масштабом
-    document.getElementById('zoomIn').addEventListener('click', () => diagram.commandHandler.increaseZoom());
-    document.getElementById('zoomOut').addEventListener('click', () => diagram.commandHandler.decreaseZoom());
-    document.getElementById('fit').addEventListener('click', () => diagram.commandHandler.fitToBounds());
+    // Применение настроек к форме
+    function applySettingsToForm() {
+        document.getElementById('nodeBackground').value = currentSettings.nodeBackground;
+        document.getElementById('overdueColor').value = currentSettings.borderColors.overdue;
+        document.getElementById('doneColor').value = currentSettings.borderColors.done;
+        document.getElementById('waitingColor').value = currentSettings.borderColors.waiting;
+        document.getElementById('canceledColor').value = currentSettings.borderColors.canceled;
+        document.getElementById('inProgressColor').value = currentSettings.borderColors.in_progress;
+        document.getElementById('showProgress').checked = currentSettings.showFields.progress;
+        document.getElementById('showStatus').checked = currentSettings.showFields.status;
+    }
 
-    loadTasks();
+    // Сохранение настроек
+    function saveSettings() {
+        const newSettings = {
+            nodeBackground: document.getElementById('nodeBackground').value,
+            borderColors: {
+                overdue: document.getElementById('overdueColor').value,
+                done: document.getElementById('doneColor').value,
+                waiting: document.getElementById('waitingColor').value,
+                canceled: document.getElementById('canceledColor').value,
+                in_progress: document.getElementById('inProgressColor').value
+            },
+            showFields: {
+                progress: document.getElementById('showProgress').checked,
+                status: document.getElementById('showStatus').checked
+            }
+        };
+
+        currentSettings = {...defaultSettings, ...newSettings};
+
+        {% if request.user.is_authenticated %}
+        axios.patch('/api/users/{{ request.user.id }}/', {
+            task_graph_settings: newSettings
+        })
+        .then(() => {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+            modal.hide();
+            initDiagram(); // Перезагружаем диаграмму с новыми настройками
+        })
+        .catch(error => {
+            console.error('Ошибка сохранения настроек:', error);
+        });
+        {% else %}
+        const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+        modal.hide();
+        initDiagram(); // Перезагружаем диаграмму с новыми настройками
+        {% endif %}
+    }
+
+    // Инициализация диаграммы
+    function initDiagram() {
+        const $ = go.GraphObject.make;
+        
+        const diagram = $(go.Diagram, "diagramDiv", {
+            initialContentAlignment: go.Spot.Center,
+            "undoManager.isEnabled": true,
+            layout: $(go.TreeLayout, { 
+                nodeSpacing: 20,
+            })
+        });
+
+        // Шаблон узла с учетом настроек
+        diagram.nodeTemplate =
+            $(go.Node, "Auto",
+                {
+                    cursor: "pointer",
+                    doubleClick: (e, node) => {
+                        window.location.href = `/tasks/${node.data.key}/edit/`;
+                    }
+                },
+                $(go.Shape, "Rectangle", 
+                    { 
+                        fill: currentSettings.nodeBackground,
+                        strokeWidth: 2,
+                        portId: ""
+                    },
+                    new go.Binding("stroke", "", function(data) {
+                        const now = new Date();
+                        if (data.deadline && new Date(data.deadline) < now && data.status !== 'done') {
+                            return currentSettings.borderColors.overdue;
+                        }
+                        switch(data.status) {
+                            case 'done': return currentSettings.borderColors.done;
+                            case 'canceled': return currentSettings.borderColors.canceled;
+                            case 'in_progress': return currentSettings.borderColors.in_progress;
+                            default: return currentSettings.borderColors.waiting;
+                        }
+                    })
+                ),
+                
+                $(go.Panel, "Vertical",
+                    { margin: 8 },
+                    // Название задачи (всегда отображается)
+                    $(go.TextBlock,
+                        {
+                            font: "bold 14px Segoe UI",
+                            stroke: "#1F4963",
+                            margin: new go.Margin(0, 0, 4, 0),
+                            wrap: go.TextBlock.WrapFit,
+                            maxSize: new go.Size(200, NaN)
+                        },
+                        new go.Binding("text", "title")),
+                    
+                    // Процент выполненных зависимостей (если включен)
+                    currentSettings.showFields.progress ?
+                    $(go.TextBlock,
+                        {
+                            font: "11px Segoe UI",
+                            stroke: "#666",
+                            margin: new go.Margin(0, 0, 2, 0)
+                        },
+                        new go.Binding("text", "dependencyProgress", p => `${Math.round(p)}% выполнено`))
+                    : null,
+                    
+                    // Статус (если включен)
+                    currentSettings.showFields.status ?
+                    $(go.TextBlock,
+                        {
+                            font: "italic 11px Segoe UI",
+                            stroke: "#666",
+                            margin: new go.Margin(0, 0, 2, 0)
+                        },
+                        new go.Binding("text", "status", s => `Статус: ${s.toUpperCase()}`))
+                    : null
+                )
+            );
+
+        diagram.linkTemplate =
+            $(go.Link,
+                {
+                    curve: go.Curve.Bezier,
+                    toEndSegmentLength: 30,
+                    fromEndSegmentLength: 30
+                },
+                $(go.Shape, { strokeWidth: 1.5 })
+            );
+
+        // Загрузка данных
+        async function loadTasks() {
+            try {
+                const response = await axios.get('/api/tasks/');
+                const tasks = response.data;
+                
+                const taskMap = new Map(tasks.map(task => [task.id, task]));
+                const nodes = [];
+                const links = [];
+                
+                tasks.forEach(task => {
+                    nodes.push({
+                        key: task.id,
+                        title: task.title,
+                        status: task.status,
+                        progress: task.progress,
+                        deadline: task.deadline,
+                        dependencyProgress: task.completed_dependencies_percentage || 100
+                    });
+
+                    task.dependencies.forEach(depId => {
+                        links.push({ from: depId, to: task.id });
+                    });
+                });
+
+                diagram.model = new go.GraphLinksModel({
+                    nodeDataArray: nodes,
+                    linkDataArray: links
+                });
+
+            } catch (error) {
+                console.error('Ошибка загрузки данных:', error);
+            }
+        }
+
+        loadTasks();
+    }
+
+    // Инициализация модального окна
+    const settingsModal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+        settingsModal.show();
+    });
+    
+    document.getElementById('saveSettings').addEventListener('click', saveSettings);
+
+    // Управление масштабом
+    document.getElementById('zoomIn').addEventListener('click', () => {
+        const diagram = go.Diagram.fromDiv(document.getElementById('diagramDiv'));
+        diagram.commandHandler.increaseZoom();
+    });
+    
+    document.getElementById('zoomOut').addEventListener('click', () => {
+        const diagram = go.Diagram.fromDiv(document.getElementById('diagramDiv'));
+        diagram.commandHandler.decreaseZoom();
+    });
+    
+    document.getElementById('fit').addEventListener('click', () => {
+        const diagram = go.Diagram.fromDiv(document.getElementById('diagramDiv'));
+        diagram.commandHandler.fitToBounds();
+    });
+
+    // Запуск приложения
+    loadUserSettings();
+    initDiagram();
 });
 </script>
 {% endblock %}
