@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3>Граф задач</h3>
+        <div class="btn-group">
+            <button class="btn btn-sm btn-outline-secondary" id="zoomIn">+</button>
+            <button class="btn btn-sm btn-outline-secondary" id="zoomOut">-</button>
+            <button class="btn btn-sm btn-outline-primary" id="fit">Авторазмер</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="diagramDiv" style="width: 100%; height: 600px; background-color: #fafafa; border: 1px solid #ddd;"></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/gojs/release/go.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const $ = go.GraphObject.make;
+    
+    // Настройки по умолчанию
+    const defaultSettings = {
+        taskBackground: "#FFFFFF",
+        borderColors: {
+            done: "#4CAF50",
+            waiting: "#FFEB3B",
+            canceled: "#9E9E9E",
+            progress: "#2196F3"
+        },
+        deadlineIndicator: true,
+        showProgressBar: true,
+        showDependencyProgress: true,
+        showStatus: true
+    };
+
+    // Получаем настройки пользователя или используем по умолчанию
+    const userSettings = {% if request.user.is_authenticated and request.user.user_settings %}
+        {{ request.user.user_settings|safe }}
+    {% else %}
+        defaultSettings
+    {% endif %};
+
+    // Инициализация диаграммы
+    const diagram = $(go.Diagram, "diagramDiv", {
+        initialContentAlignment: go.Spot.Center,
+        "undoManager.isEnabled": true,
+        layout: $(go.TreeLayout, { 
+            nodeSpacing: 20,
+            layerSpacing: 40
+        })
+    });
+
+    // Шаблон узла задачи
+    diagram.nodeTemplate =
+        $(go.Node, "Auto",
+            {
+                cursor: "pointer",
+                doubleClick: (e, node) => {
+                    window.location.href = `/tasks/${node.data.key}/edit/`;
+                }
+            },
+            // Основная форма узла
+            $(go.Shape, "Rectangle", 
+                { 
+                    fill: userSettings.taskBackground,
+                    strokeWidth: 2,
+                    portId: ""
+                },
+                new go.Binding("stroke", "status", s => userSettings.borderColors[s] || "#1F4963")
+            ),
+            
+            $(go.Panel, "Vertical",
+                { margin: 8 },
+                // Заголовок задачи с индикатором дедлайна
+                $(go.Panel, "Horizontal",
+                    { stretch: go.GraphObject.Horizontal },
+                    $(go.TextBlock,
+                        {
+                            font: "bold 14px Segoe UI",
+                            stroke: "#1F4963",
+                            margin: new go.Margin(0, 0, 4, 0),
+                            wrap: go.TextBlock.WrapFit,
+                            maxSize: new go.Size(180, NaN)
+                        },
+                        new go.Binding("text", "title")),
+                    
+                    // Индикатор просроченного дедлайна
+                    $(go.Shape, "Circle",
+                        {
+                            width: 10,
+                            height: 10,
+                            fill: "red",
+                            stroke: null,
+                            alignment: go.Spot.TopRight,
+                            margin: new go.Margin(2, 2, 0, 0),
+                            visible: false
+                        },
+                        new go.Binding("visible", "isOverdue"),
+                        new go.Binding("fill", "status", s => s === 'done' ? "#4CAF50" : "red"))
+                ),
+                
+                // Статус задачи (если включен в настройках)
+                userSettings.showStatus ? 
+                $(go.TextBlock,
+                    {
+                        font: "italic 11px Segoe UI",
+                        stroke: "#666",
+                        margin: new go.Margin(0, 0, 4, 0)
+                    },
+                    new go.Binding("text", "status", s => `Статус: ${s.toUpperCase()}`))
+                : null,
+                
+                // Прогресс выполнения и зависимостей
+                $(go.Panel, "Vertical",
+                    { margin: new go.Margin(4, 0, 0, 0) },
+                    // Прогресс выполнения задачи (если включен)
+                    userSettings.showProgressBar ?
+                    $(go.Panel, "Horizontal",
+                        { stretch: go.GraphObject.Horizontal },
+                        $(go.TextBlock, 
+                            { 
+                                text: "Прогресс:", 
+                                font: "11px Segoe UI",
+                                stroke: "#666",
+                                margin: new go.Margin(0, 5, 0, 0)
+                            }),
+                        $(go.Panel, "Horizontal",
+                            { width: 80, height: 8 },
+                            $(go.Shape, "Rectangle",
+                                {
+                                    fill: "#EEE",
+                                    stroke: null,
+                                    width: 80,
+                                    height: 8
+                                }),
+                            $(go.Shape, "Rectangle",
+                                {
+                                    fill: "#4CAF50",
+                                    stroke: null,
+                                    width: 0,
+                                    height: 8,
+                                    alignment: go.Spot.Left
+                                },
+                                new go.Binding("width", "progress", p => p))
+                        )
+                    ) : null,
+                    
+                    // Прогресс зависимостей (если включен)
+                    userSettings.showDependencyProgress ?
+                    $(go.Panel, "Horizontal",
+                        { stretch: go.GraphObject.Horizontal },
+                        $(go.TextBlock, 
+                            { 
+                                text: "Зависимости:", 
+                                font: "11px Segoe UI",
+                                stroke: "#666",
+                                margin: new go.Margin(4, 5, 0, 0)
+                            }),
+                        $(go.TextBlock,
+                            {
+                                font: "11px Segoe UI",
+                                stroke: "#666"
+                            },
+                            new go.Binding("text", "dependencyProgress", p => `${Math.round(p)}% выполнено`))
+                    ) : null
+                )
+            )
+        );
+
+    // Шаблон связей между задачами
+    diagram.linkTemplate =
+        $(go.Link,
+            {
+                curve: go.Curve.Bezier,
+                toEndSegmentLength: 30,
+                fromEndSegmentLength: 30
+            },
+            $(go.Shape, { strokeWidth: 1.5, stroke: "#9E9E9E" })
+        );
+
+    // Загрузка данных
+    async function loadTasks() {
+        try {
+            const response = await axios.get('/api/tasks/');
+            const tasks = response.data;
+            
+            const taskMap = new Map(tasks.map(task => [task.id, task]));
+            const nodes = [];
+            const links = [];
+            
+            tasks.forEach(task => {
+                // Проверяем просрочен ли дедлайн
+                const now = new Date();
+                const deadline = task.deadline ? new Date(task.deadline) : null;
+                const isOverdue = deadline && deadline < now && task.status !== 'done';
+                
+                nodes.push({
+                    key: task.id,
+                    title: task.title,
+                    status: task.status,
+                    progress: task.progress,
+                    dependencyProgress: task.completed_dependencies_percentage,
+                    isOverdue: isOverdue,
+                    deadline: task.deadline
+                });
+
+                // Строим связи из dependencies
+                task.dependencies.forEach(depId => {
+                    links.push({
+                        from: depId,
+                        to: task.id
+                    });
+                });
+            });
+
+            diagram.model = new go.GraphLinksModel({
+                nodeDataArray: nodes,
+                linkDataArray: links
+            });
+
+        } catch (error) {
+            console.error('Ошибка загрузки данных:', error);
+        }
+    }
+
+    // Управление масштабом
+    document.getElementById('zoomIn').addEventListener('click', () => diagram.commandHandler.increaseZoom());
+    document.getElementById('zoomOut').addEventListener('click', () => diagram.commandHandler.decreaseZoom());
+    document.getElementById('fit').addEventListener('click', () => diagram.commandHandler.fitToBounds());
+
+    loadTasks();
+});
+</script>
+{% endblock %}

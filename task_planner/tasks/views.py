@@ -51,11 +51,38 @@ class FileAttachmentViewSet(viewsets.ModelViewSet):
     serializer_class = FileAttachmentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+
+
+from django.db.models import Count, Case, When, Q, F, ExpressionWrapper, IntegerField
+from django.db.models.functions import Coalesce
+
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.filter(is_deleted=False)
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+    def get_queryset(self):
+        # Аннотируем количество зависимостей и выполненных зависимостей
+        queryset = super().get_queryset().annotate(
+            total_dependencies=Count('dependencies', distinct=True),
+            completed_dependencies=Count(
+                'dependencies',
+                distinct=True,
+                filter=Q(dependencies__status='done')
+            )
+        )
+        
+        # Безопасное вычисление процента с проверкой на ноль
+        return queryset.annotate(
+            completed_dependencies_percentage=Case(
+                When(total_dependencies=0, then=100),  # Если нет зависимостей - 100%
+                default=ExpressionWrapper(
+                    F('completed_dependencies') * 100 / F('total_dependencies'),
+                    output_field=IntegerField()
+                ),
+                output_field=IntegerField()
+            )
+        )
     @action(detail=True, methods=['post'])
     def add_dependency(self, request, pk=None):
         task = self.get_object()
@@ -70,7 +97,6 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.dependencies.remove(dependency)
         return Response({'status': 'dependency removed'})
     
-# views.py
 from django.shortcuts import render, get_object_or_404
 
 def task_form(request, pk=None):
@@ -80,4 +106,4 @@ def task_form(request, pk=None):
     return render(request, 'task_form.html', context)
 
 def task_graph(request):
-    return render(request, 'graf.html')
+    return render(request, 'graph.html')
