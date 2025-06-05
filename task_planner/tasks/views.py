@@ -108,3 +108,20 @@ def task_form(request, pk=None):
 
 def task_graph(request):
     return render(request, 'graph.html')
+
+# views.py
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+import json
+
+@login_required
+def update_graph_settings(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            request.user.profile.graph_settings = data
+            request.user.profile.save()
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)

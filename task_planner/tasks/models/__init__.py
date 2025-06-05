@@ -5,4 +5,4 @@ from tasks.models.link import Link as Link
 from tasks.models.task import Task as Task
 from tasks.models.task_link import TaskLink as TaskLink
 from tasks.models.file_attachment import FileAttachment as FileAttachment
-from tasks.models.user import CustomUser as CustomUser
+from tasks.models.userProfile import UserProfile as UserProfile

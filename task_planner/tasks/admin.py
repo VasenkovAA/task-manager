@@ -1,6 +1,5 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
-from django.utils.html import format_html
 from .models import (
     TaskCategory,
     NotificationMethod,
