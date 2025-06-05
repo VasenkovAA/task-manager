@@ -67,15 +67,15 @@ class UserProfile(models.Model):
         verbose_name_plural = "Профили пользователей"
 
 
-# Оптимизированные сигналы
-@receiver(post_save, sender=User)
-def handle_user_profile(sender, instance, created, **kwargs):
-    """
-    Автоматическое создание/обновление профиля пользователя
-    """
-    if created:
-        UserProfile.objects.get_or_create(user=instance)
-    else:
-        # Безопасное обновление существующего профиля
-        if hasattr(instance, "profile"):
-            instance.profile.save()
+# # Оптимизированные сигналы
+# @receiver(post_save, sender=User)
+# def handle_user_profile(sender, instance, created, **kwargs):
+#     """
+#     Автоматическое создание/обновление профиля пользователя
+#     """
+#     if created:
+#         UserProfile.objects.get_or_create(user=instance)
+#     else:
+#         # Безопасное обновление существующего профиля
+#         if hasattr(instance, "profile"):
+#             instance.profile.save()
