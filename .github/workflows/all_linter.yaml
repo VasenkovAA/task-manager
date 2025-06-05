@@ -87,7 +87,7 @@ jobs:
         pip install -r requirements.txt
     - name: Check for new migrations
       run: |
-        python manage.py makemigrations --dry-run --check || (echo "Error: New migrations detected. Please run 'makemigrations' and commit them." && exit 1)
+        python manage.py task_planner/akemigrations --dry-run --check || (echo "Error: New migrations detected. Please run 'makemigrations' and commit them." && exit 1)
     - name: Check migration conflicts
       run: |
-        python manage.py makemigrations --check --dry-run || (echo "Error: Migration conflicts detected. Please resolve them." && exit 1)
+        python manage.py task_planner/makemigrations --check --dry-run || (echo "Error: Migration conflicts detected. Please resolve them." && exit 1)
