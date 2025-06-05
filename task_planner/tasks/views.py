@@ -23,7 +23,9 @@ from tasks.serializers import (
 
 from django.db.models import Count, Case, When, Q, F, ExpressionWrapper, IntegerField
 from django.shortcuts import render, get_object_or_404
-
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+import json
 
 class TaskCategoryViewSet(viewsets.ModelViewSet):
     queryset = TaskCategory.objects.all()
@@ -98,8 +100,6 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.dependencies.remove(dependency)
         return Response({'status': 'dependency removed'})
     
-
-
 def task_form(request, pk=None):
     context = {}
     if pk:
@@ -108,11 +108,6 @@ def task_form(request, pk=None):
 
 def task_graph(request):
     return render(request, 'graph.html')
-
-# views.py
-from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
-import json
 
 @login_required
 def update_graph_settings(request):
