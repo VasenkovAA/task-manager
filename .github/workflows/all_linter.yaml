@@ -1,0 +1,111 @@
+name: Django CI Pipeline
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  #check_branch_name:
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #  - uses: actions/checkout@v4
+  #
+  #  - name: Validate branch naming
+  #    run: |
+  #      BRANCH_NAME=${GITHUB_REF#refs/heads/}
+  #      if [[ ! "$BRANCH_NAME" =~ ^(back|front)/(feat|fix|docs|style|refactor|test|chore|ci)/[a-zA-Z0-9_-]+$ ]]; then
+  #        echo "::error::Invalid branch name '$BRANCH_NAME'"
+  #        echo "Expected format: <team>/<type>/<task-name>"
+  #        echo "Teams: back, front"
+  #        echo "Types: feat, fix, docs, style, refactor, test, chore, ci"
+  #        echo "Example: back/ci/addCI"
+  #        echo "Example: front/feat/user-authentication"
+  #        exit 1
+  #       fi
+  
+  check_dependencies:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    - name: Upgrade pip and setuptools
+      run: |
+        python -m pip install --upgrade pip setuptools
+    - name: Check for outdated dependencies
+      run: |
+        pip list --outdated --format=columns || echo "No outdated packages found"
+    - name: Check for security vulnerabilities
+      run: |
+        pip install pip-audit
+        pip-audit || echo "Vulnerabilities found (see report above)"
+    - name: Fail if setuptools is vulnerable
+      run: |
+        pip list | grep setuptools
+        if pip list | grep 'setuptools\s*65\.5\.0'; then
+          echo "::error::Vulnerable setuptools version detected (65.5.0). Please upgrade to 65.5.1 or higher."
+          exit 1
+        fi
+  lint_backend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Ruff
+      run: pip install ruff
+
+    - name: Run Ruff linter
+      run: ruff check .
+
+  lint_frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install HTML5Validator
+        run: pip install html5validator
+
+      - name: Install djlint
+        run: pip install djlint
+
+      - name: Django templates check
+        run: djlint ./tasks/templates --lint
+
+  check_migrations:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Check for new migrations
+      run: |
+        python manage.py makemigrations --dry-run --check || (echo "Error: New migrations detected. Please run 'makemigrations' and commit them." && exit 1)
+    - name: Check migration conflicts
+      run: |
+        python manage.py makemigrations --check --dry-run || (echo "Error: Migration conflicts detected. Please resolve them." && exit 1)

@@ -1,130 +1,161 @@
-{% extends 'base.html' %}
-
+{% extends "base.html" %}
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h3>{% if task %}Редактирование задачи{% else %}Новая задача{% endif %}</h3>
+    <div class="card">
+        <div class="card-header">
+            <h3>
+                {% if task %}
+                    Редактирование задачи
+                {% else %}
+                    Новая задача
+                {% endif %}
+            </h3>
+        </div>
+        <div class="card-body">
+            <form id="taskForm">
+                <div class="mb-3">
+                    <label class="form-label">Название</label>
+                    <input type="text" class="form-control" name="title" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-control" name="description" rows="3"></textarea>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Исполнитель</label>
+                        <select class="form-select" name="assignee" id="assigneeSelect"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Локация</label>
+                        <select class="form-select" name="location" id="locationSelect"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Категории</label>
+                        <select class="form-select" name="categories" id="categorySelect" multiple></select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Статус</label>
+                        <select class="form-select" name="status">
+                            <option value="waiting">Ожидание</option>
+                            <option value="progress">В работе</option>
+                            <option value="done">Завершено</option>
+                            <option value="canceled">Отменено</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Уровень риска</label>
+                        <select class="form-select" name="risk_level">
+                            <option value="low">Низкий</option>
+                            <option value="medium">Средний</option>
+                            <option value="high">Высокий</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        {% if task %}
+                            Обновить
+                        {% else %}
+                            Создать
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-    <div class="card-body">
-        <form id="taskForm">
-            <div class="mb-3">
-                <label class="form-label">Название</label>
-                <input type="text" class="form-control" name="title" required>
-            </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Загрузка данных для выпадающих списков
+            const loadOptions = async (url, selectId, isMultiple = false) => {
+                try {
+                    const response = await axios.get(url);
+                    const select = document.getElementById(selectId);
+                    select.innerHTML = response.data.map(item =>
+                        `<option value="${item.id}">${item.name || item.username}</option>`
+                    ).join('');
+                    if (isMultiple) select.multiple = true;
+                } catch (error) {
+                    console.error('Ошибка загрузки данных:', error);
+                }
+            };
 
-            <div class="mb-3">
-                <label class="form-label">Описание</label>
-                <textarea class="form-control" name="description" rows="3"></textarea>
-            </div>
+            // Загрузка пользователей, локаций и категорий
+            loadOptions('/api/users/', 'assigneeSelect');
+            loadOptions('/api/locations/', 'locationSelect');
+            loadOptions('/api/task-categories/', 'categorySelect', true);
 
-            <div class="row">
-                <div class="col-md-4">
-                    <label class="form-label">Исполнитель</label>
-                    <select class="form-select" name="assignee" id="assigneeSelect"></select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Локация</label>
-                    <select class="form-select" name="location" id="locationSelect"></select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Категории</label>
-                    <select class="form-select" name="categories" id="categorySelect" multiple></select>
-                </div>
-            </div>
+            // Обработка отправки формы
+            document.getElementById('taskForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
 
-            <div class="row mt-3">
-                <div class="col-md-4">
-                    <label class="form-label">Статус</label>
-                    <select class="form-select" name="status">
-                        <option value="waiting">Ожидание</option>
-                        <option value="progress">В работе</option>
-                        <option value="done">Завершено</option>
-                        <option value="canceled">Отменено</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Уровень риска</label>
-                    <select class="form-select" name="risk_level">
-                        <option value="low">Низкий</option>
-                        <option value="medium">Средний</option>
-                        <option value="high">Высокий</option>
-                    </select>
-                </div>
-            </div>
+                const formData = {
+                    title: this.title.value,
+                    description: this.description.value,
+                    assignee: this.assignee.value,
+                    location: this.location.value,
+                    categories: Array.from(this.categories.selectedOptions).map(opt => opt.value),
+                    status: this.status.value,
+                    risk_level: this.risk_level.value,
+                    // Добавьте остальные поля по аналогии
+                };
 
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary">
-                    {% if task %}Обновить{% else %}Создать{% endif %}
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+                try {
+                    const url = {
+                        %
+                        if task %
+                    }
+                    '/api/tasks/{{ task.id }}/' {
+                        %
+                        else %
+                    }
+                    '/api/tasks/' {
+                        % endif %
+                    };
+                    const method = {
+                        %
+                        if task %
+                    }
+                    'put' {
+                        %
+                        else %
+                    }
+                    'post' {
+                        % endif %
+                    };
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Загрузка данных для выпадающих списков
-    const loadOptions = async (url, selectId, isMultiple = false) => {
-        try {
-            const response = await axios.get(url);
-            const select = document.getElementById(selectId);
-            select.innerHTML = response.data.map(item => 
-                `<option value="${item.id}">${item.name || item.username}</option>`
-            ).join('');
-            if(isMultiple) select.multiple = true;
-        } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
-        }
-    };
+                    const response = await axios({
+                        method: method,
+                        url: url,
+                        data: formData,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
 
-    // Загрузка пользователей, локаций и категорий
-    loadOptions('/api/users/', 'assigneeSelect');
-    loadOptions('/api/locations/', 'locationSelect');
-    loadOptions('/api/task-categories/', 'categorySelect', true);
-
-    // Обработка отправки формы
-    document.getElementById('taskForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const formData = {
-            title: this.title.value,
-            description: this.description.value,
-            assignee: this.assignee.value,
-            location: this.location.value,
-            categories: Array.from(this.categories.selectedOptions).map(opt => opt.value),
-            status: this.status.value,
-            risk_level: this.risk_level.value,
-            // Добавьте остальные поля по аналогии
-        };
-
-        try {
-            const url = {% if task %}'/api/tasks/{{ task.id }}/'{% else %}'/api/tasks/'{% endif %};
-            const method = {% if task %}'put'{% else %}'post'{% endif %};
-            
-            const response = await axios({
-                method: method,
-                url: url,
-                data: formData,
-                headers: {'Content-Type': 'application/json'}
+                    window.location.href = '/tasks/';
+                } catch (error) {
+                    alert('Ошибка сохранения: ' + error.response.data);
+                }
             });
-            
-            window.location.href = '/tasks/';
-        } catch (error) {
-            alert('Ошибка сохранения: ' + error.response.data);
-        }
-    });
 
-    // Загрузка данных задачи для редактирования
-    {% if task %}
-    axios.get('/api/tasks/{{ task.id }}/')
-        .then(response => {
-            const data = response.data;
-            document.querySelector('input[name="title"]').value = data.title;
-            document.querySelector('textarea[name="description"]').value = data.description || '';
-            // Заполните остальные поля по аналогии
-        })
-        .catch(error => console.error('Ошибка загрузки задачи:', error));
-    {% endif %}
-});
-</script>
-{% endblock %}
+            // Загрузка данных задачи для редактирования
+            {
+                %
+                if task %
+            }
+            axios.get('/api/tasks/{{ task.id }}/')
+                .then(response => {
+                    const data = response.data;
+                    document.querySelector('input[name="title"]').value = data.title;
+                    document.querySelector('textarea[name="description"]').value = data.description || '';
+                    // Заполните остальные поля по аналогии
+                })
+                .catch(error => console.error('Ошибка загрузки задачи:', error));
+            {
+                % endif %
+            }
+        });
+    </script>
+{% endblock content %}

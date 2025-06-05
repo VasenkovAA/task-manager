@@ -1,0 +1,5 @@
+{
+  "extension": "html",
+  "ignore": "myapp/templates/myapp/plan_b/**,H006,H021,H023",
+  "profile": "django"
+}

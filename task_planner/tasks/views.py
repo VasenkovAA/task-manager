@@ -21,6 +21,10 @@ from tasks.serializers import (
     FileAttachmentSerializer
 )
 
+from django.db.models import Count, Case, When, Q, F, ExpressionWrapper, IntegerField
+from django.shortcuts import render, get_object_or_404
+
+
 class TaskCategoryViewSet(viewsets.ModelViewSet):
     queryset = TaskCategory.objects.all()
     serializer_class = TaskCategorySerializer
@@ -52,9 +56,6 @@ class FileAttachmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
 
-
-from django.db.models import Count, Case, When, Q, F, ExpressionWrapper, IntegerField
-from django.db.models.functions import Coalesce
 
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.filter(is_deleted=False)
@@ -97,7 +98,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.dependencies.remove(dependency)
         return Response({'status': 'dependency removed'})
     
-from django.shortcuts import render, get_object_or_404
+
 
 def task_form(request, pk=None):
     context = {}
@@ -107,3 +108,20 @@ def task_form(request, pk=None):
 
 def task_graph(request):
     return render(request, 'graph.html')
+
+# views.py
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+import json
+
+@login_required
+def update_graph_settings(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            request.user.profile.graph_settings = data
+            request.user.profile.save()
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
