@@ -10,6 +10,8 @@ from tasks.models import (
     FileAttachment
 )
 from django.contrib.auth import get_user_model
+from rest_framework.exceptions import ValidationError
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -58,7 +60,6 @@ class FileAttachmentSerializer(serializers.ModelSerializer):
         read_only_fields = ['uploaded_at', 'task']
 
 class TaskSerializer(serializers.ModelSerializer):
-
     progress = serializers.IntegerField(min_value=0, max_value=100)
     is_ready = serializers.BooleanField()
     
@@ -99,12 +100,10 @@ class TaskSerializer(serializers.ModelSerializer):
         help_text="Список тегов задачи"
     )
     
-
     def get_tags(self, obj):
         """Возвращает список названий тегов вместо менеджера тегов"""
         return list(obj.tags.names())
     
-
     class Meta:
         model = Task
         fields = [
@@ -116,7 +115,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'quality_rating', 'version', 'budget', 'cancel_reason',
             'time_intervals', 'reminders', 'repeat_interval', 'next_activation',
             'tags', 'notifications', 'links', 'attachments',
-            'completed_dependencies_percentage', 'tags'
+            'completed_dependencies_percentage'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'deleted_at', 
@@ -152,3 +151,8 @@ class TaskSerializer(serializers.ModelSerializer):
             
         instance.save()
         return instance
+
+class TaskListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Task
+        fields = ['id', 'title', 'status', 'progress', 'deadline']

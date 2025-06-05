@@ -12,38 +12,90 @@
         </div>
         <div class="card-body">
             <form id="taskForm">
+                {% csrf_token %}
+                
+                <!-- Основная информация -->
                 <div class="mb-3">
-                    <label class="form-label">Название</label>
+                    <label class="form-label">Название*</label>
                     <input type="text" class="form-control" name="title" required>
                 </div>
+                
                 <div class="mb-3">
                     <label class="form-label">Описание</label>
                     <textarea class="form-control" name="description" rows="3"></textarea>
                 </div>
-                <div class="row">
+                
+                <!-- Статус и приоритеты -->
+                <div class="row mb-3">
                     <div class="col-md-4">
-                        <label class="form-label">Исполнитель</label>
-                        <select class="form-select" name="assignee" id="assigneeSelect"></select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Локация</label>
-                        <select class="form-select" name="location" id="locationSelect"></select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Категории</label>
-                        <select class="form-select" name="categories" id="categorySelect" multiple></select>
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Статус</label>
-                        <select class="form-select" name="status">
+                        <label class="form-label">Статус*</label>
+                        <select class="form-select" name="status" required>
                             <option value="waiting">Ожидание</option>
                             <option value="progress">В работе</option>
                             <option value="done">Завершено</option>
                             <option value="canceled">Отменено</option>
                         </select>
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Приоритет (1-10)</label>
+                        <input type="number" class="form-control" name="priority" min="1" max="10" value="5">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Прогресс (%)</label>
+                        <input type="number" class="form-control" name="progress" min="0" max="100" value="0">
+                    </div>
+                </div>
+                
+                <!-- Временные параметры -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Дата начала</label>
+                        <input type="datetime-local" class="form-control" name="start_date">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Дата окончания</label>
+                        <input type="datetime-local" class="form-control" name="end_date">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Дедлайн</label>
+                        <input type="datetime-local" class="form-control" name="deadline">
+                    </div>
+                </div>
+                
+                <!-- Ответственные -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Автор*</label>
+                        <select class="form-select" name="author" id="authorSelect" required>
+                            <option value="{{ request.user.id }}" selected>{{ request.user.username }}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Исполнитель</label>
+                        <select class="form-select" name="assignee" id="assigneeSelect"></select>
+                    </div>
+                </div>
+                
+                <!-- Категории и локации -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Категории</label>
+                        <select class="form-select" name="categories" id="categorySelect" multiple></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Локация</label>
+                        <select class="form-select" name="location" id="locationSelect"></select>
+                    </div>
+                </div>
+                
+                <!-- Зависимости -->
+                <div class="mb-3">
+                    <label class="form-label">Зависимости</label>
+                    <select class="form-select" name="dependencies" id="dependencySelect" multiple></select>
+                </div>
+                
+                <!-- Дополнительные параметры -->
+                <div class="row mb-3">
                     <div class="col-md-4">
                         <label class="form-label">Уровень риска</label>
                         <select class="form-select" name="risk_level">
@@ -52,7 +104,33 @@
                             <option value="high">Высокий</option>
                         </select>
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Сложность (1-10)</label>
+                        <input type="number" class="form-control" name="complexity" min="1" max="10" value="5">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Бюджет</label>
+                        <input type="number" class="form-control" name="budget" step="0.01">
+                    </div>
                 </div>
+                
+                <!-- Флаги -->
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="is_ready" id="isReady">
+                        <label class="form-check-label" for="isReady">Готова к выполнению</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="is_recurring" id="isRecurring">
+                        <label class="form-check-label" for="isRecurring">Периодическая задача</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="needs_approval" id="needsApproval">
+                        <label class="form-check-label" for="needsApproval">Требует утверждения</label>
+                    </div>
+                </div>
+                
+                <!-- Кнопки -->
                 <div class="mt-3">
                     <button type="submit" class="btn btn-primary">
                         {% if task %}
@@ -61,10 +139,12 @@
                             Создать
                         {% endif %}
                     </button>
+                    <a href="/tasks/" class="btn btn-secondary">Отмена</a>
                 </div>
             </form>
         </div>
     </div>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Загрузка данных для выпадающих списков
@@ -81,81 +161,125 @@
                 }
             };
 
-            // Загрузка пользователей, локаций и категорий
+            // Загрузка всех необходимых данных
             loadOptions('/api/users/', 'assigneeSelect');
             loadOptions('/api/locations/', 'locationSelect');
             loadOptions('/api/task-categories/', 'categorySelect', true);
+            loadOptions('/api/tasks/', 'dependencySelect', true);
 
             // Обработка отправки формы
             document.getElementById('taskForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
-
-                const formData = {
-                    title: this.title.value,
-                    description: this.description.value,
-                    assignee: this.assignee.value,
-                    location: this.location.value,
-                    categories: Array.from(this.categories.selectedOptions).map(opt => opt.value),
-                    status: this.status.value,
-                    risk_level: this.risk_level.value,
-                    // Добавьте остальные поля по аналогии
+                
+                // Собираем данные формы
+                const formData = new FormData(this);
+                const data = {
+                    title: formData.get('title'),
+                    description: formData.get('description'),
+                    status: formData.get('status'),
+                    priority: parseInt(formData.get('priority')),
+                    progress: parseInt(formData.get('progress')),
+                    start_date: formData.get('start_date'),
+                    end_date: formData.get('end_date'),
+                    deadline: formData.get('deadline'),
+                    author: parseInt(formData.get('author')),
+                    assignee: formData.get('assignee') ? parseInt(formData.get('assignee')) : null,
+                    location: formData.get('location') ? parseInt(formData.get('location')) : null,
+                    categories: Array.from(formData.getAll('categories')).map(id => parseInt(id)),
+                    dependencies: Array.from(formData.getAll('dependencies')).map(id => parseInt(id)),
+                    risk_level: formData.get('risk_level'),
+                    complexity: parseInt(formData.get('complexity')),
+                    budget: formData.get('budget') ? parseFloat(formData.get('budget')) : null,
+                    is_ready: formData.get('is_ready') === 'on',
+                    is_recurring: formData.get('is_recurring') === 'on',
+                    needs_approval: formData.get('needs_approval') === 'on'
                 };
 
                 try {
-                    const url = {
-                        %
-                        if task %
-                    }
-                    '/api/tasks/{{ task.id }}/' {
-                        %
-                        else %
-                    }
-                    '/api/tasks/' {
-                        % endif %
-                    };
-                    const method = {
-                        %
-                        if task %
-                    }
-                    'put' {
-                        %
-                        else %
-                    }
-                    'post' {
-                        % endif %
-                    };
+                    const url = {% if task %}'/api/tasks/{{ task.id }}/'{% else %}'/api/tasks/'{% endif %};
+                    const method = {% if task %}'put'{% else %}'post'{% endif %};
 
                     const response = await axios({
                         method: method,
                         url: url,
-                        data: formData,
+                        data: data,
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                         }
                     });
 
                     window.location.href = '/tasks/';
                 } catch (error) {
-                    alert('Ошибка сохранения: ' + error.response.data);
+                    alert('Ошибка сохранения: ' + (error.response?.data?.detail || error.message));
+                    console.error('Ошибка:', error);
                 }
             });
 
             // Загрузка данных задачи для редактирования
-            {
-                %
-                if task %
-            }
+            {% if task %}
             axios.get('/api/tasks/{{ task.id }}/')
                 .then(response => {
                     const data = response.data;
-                    document.querySelector('input[name="title"]').value = data.title;
+                    // Заполняем основные поля
+                    document.querySelector('input[name="title"]').value = data.title || '';
                     document.querySelector('textarea[name="description"]').value = data.description || '';
-                    // Заполните остальные поля по аналогии
+                    document.querySelector('select[name="status"]').value = data.status;
+                    document.querySelector('input[name="priority"]').value = data.priority;
+                    document.querySelector('input[name="progress"]').value = data.progress;
+                    
+                    // Заполняем даты
+                    if (data.start_date) {
+                        document.querySelector('input[name="start_date"]').value = new Date(data.start_date).toISOString().slice(0, 16);
+                    }
+                    if (data.end_date) {
+                        document.querySelector('input[name="end_date"]').value = new Date(data.end_date).toISOString().slice(0, 16);
+                    }
+                    if (data.deadline) {
+                        document.querySelector('input[name="deadline"]').value = new Date(data.deadline).toISOString().slice(0, 16);
+                    }
+                    
+                    // Заполняем выпадающие списки
+                    if (data.assignee) {
+                        setTimeout(() => {
+                            document.querySelector('select[name="assignee"]').value = data.assignee.id;
+                        }, 500);
+                    }
+                    if (data.location) {
+                        setTimeout(() => {
+                            document.querySelector('select[name="location"]').value = data.location.id;
+                        }, 500);
+                    }
+                    
+                    // Заполняем множественные выборы
+                    setTimeout(() => {
+                        if (data.categories && data.categories.length > 0) {
+                            const categorySelect = document.getElementById('categorySelect');
+                            data.categories.forEach(cat => {
+                                const option = Array.from(categorySelect.options).find(opt => parseInt(opt.value) === cat.id);
+                                if (option) option.selected = true;
+                            });
+                        }
+                        
+                        if (data.dependencies && data.dependencies.length > 0) {
+                            const depSelect = document.getElementById('dependencySelect');
+                            data.dependencies.forEach(dep => {
+                                const option = Array.from(depSelect.options).find(opt => parseInt(opt.value) === dep.id);
+                                if (option) option.selected = true;
+                            });
+                        }
+                    }, 1000);
+                    
+                    // Заполняем остальные поля
+                    document.querySelector('select[name="risk_level"]').value = data.risk_level;
+                    document.querySelector('input[name="complexity"]').value = data.complexity;
+                    if (data.budget) document.querySelector('input[name="budget"]').value = data.budget;
+                    document.querySelector('input[name="is_ready"]').checked = data.is_ready;
+                    document.querySelector('input[name="is_recurring"]').checked = data.is_recurring;
+                    document.querySelector('input[name="needs_approval"]').checked = data.needs_approval;
                 })
                 .catch(error => console.error('Ошибка загрузки задачи:', error));
-            {
-                % endif %
-            }
+            {% endif %}
         });
     </script>
 {% endblock content %}

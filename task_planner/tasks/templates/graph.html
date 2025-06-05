@@ -68,7 +68,7 @@ const userSettings = {% if request.user.is_authenticated and request.user.user_s
                 $(go.Node, "Auto", {
                         cursor: "pointer",
                         doubleClick: (e, node) => {
-                            window.location.href = `/tasks/${node.data.key}/edit/`;
+                            window.location.href = `/tasks/${node.data.key}/form/`;
                         }
                     },
                     // Основная форма узла

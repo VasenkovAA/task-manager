@@ -34,7 +34,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 
     #path('1/', views.task_form, name='task_create'),
-    path('tasks/<int:pk>/edit/', views.task_form, name='task_edit'),
+    path('tasks/<int:pk>/form/', views.task_form, name='task-form'),
     path('', views.task_graph, name='task_graph'),
+    path('update-graph-settings/', views.update_graph_settings, name='update_graph_settings'),
 ]
 
