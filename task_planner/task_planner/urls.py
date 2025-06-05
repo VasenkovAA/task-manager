@@ -8,18 +8,18 @@ from tasks import views
 from django.contrib import admin
 
 router = routers.DefaultRouter()
-router.register(r'task-categories', views.TaskCategoryViewSet)
-router.register(r'notification-methods', views.NotificationMethodViewSet)
-router.register(r'locations', views.LocationViewSet)
-router.register(r'links', views.LinkViewSet)
-router.register(r'task-links', views.TaskLinkViewSet)
-router.register(r'attachments', views.FileAttachmentViewSet)
-router.register(r'tasks', views.TaskViewSet)
+router.register(r"task-categories", views.TaskCategoryViewSet)
+router.register(r"notification-methods", views.NotificationMethodViewSet)
+router.register(r"locations", views.LocationViewSet)
+router.register(r"links", views.LinkViewSet)
+router.register(r"task-links", views.TaskLinkViewSet)
+router.register(r"attachments", views.FileAttachmentViewSet)
+router.register(r"tasks", views.TaskViewSet)
 
 schema_view = get_schema_view(
     openapi.Info(
         title="Task Management API",
-        default_version='v1',
+        default_version="v1",
         description="API для управления задачами",
         contact=openapi.Contact(email="admin@example.com"),
     ),
@@ -28,14 +28,20 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    path('api/', include(router.urls)),
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    #path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    path("api/", include(router.urls)),
+    path(
+        "swagger/",
+        schema_view.with_ui("swagger", cache_timeout=0),
+        name="schema-swagger-ui",
+    ),
+    # path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path("admin/", admin.site.urls),
-
-    #path('1/', views.task_form, name='task_create'),
-    path('tasks/<int:pk>/form/', views.task_form, name='task-form'),
-    path('', views.task_graph, name='task_graph'),
-    path('update-graph-settings/', views.update_graph_settings, name='update_graph_settings'),
+    # path('1/', views.task_form, name='task_create'),
+    path("tasks/<int:pk>/form/", views.task_form, name="task-form"),
+    path("", views.task_graph, name="task_graph"),
+    path(
+        "update-graph-settings/",
+        views.update_graph_settings,
+        name="update_graph_settings",
+    ),
 ]
-
