@@ -13,6 +13,32 @@ User = get_user_model()
 
 
 class Task(models.Model):
+    """
+    Основная модель системы, представляющая задачу с комплексными атрибутами управления.
+    
+    Включает:
+    - Систему статусов выполнения
+    - Иерархию зависимостей между задачами
+    - Категоризацию и тегирование
+    - Управление временными параметрами
+    - Назначение ответственных
+    - Систему уведомлений
+    - Историю изменений
+    - Механизм мягкого удаления
+    
+    Статусы задачи:
+        waiting: Ожидает начала выполнения
+        progress: Активно выполняется
+        done: Успешно завершена
+        canceled: Отменена
+    
+    Уровни риска:
+        low: Низкий риск выполнения
+        medium: Средний риск
+        high: Высокий риск
+    """
+    
+    # Константы статусов и уровней риска
     STATUS_CHOICES = [
         ("waiting", "Ожидает начала"),
         ("progress", "В процессе"),
@@ -31,15 +57,16 @@ class Task(models.Model):
         max_length=200,
         unique=True,
         error_messages={"unique": "Задача с таким названием уже существует"},
-        help_text="Уникальное название задачи",
+        help_text="Уникальное название задачи (макс. 200 символов)"
     )
     description = models.TextField(
-        blank=True, null=True, help_text="Подробное описание задачи"
+        blank=True, null=True,
+        help_text="Подробное описание задачи, поддерживающее форматирование"
     )
     priority = models.IntegerField(
         default=5,
         validators=[MinValueValidator(1), MaxValueValidator(10)],
-        help_text="Приоритет по 10-балльной шкале",
+        help_text="Приоритет по 10-балльной шкале (1 - низший, 10 - высший)"
     )
 
     # Статус и прогресс
@@ -47,32 +74,38 @@ class Task(models.Model):
         max_length=20,
         choices=STATUS_CHOICES,
         default="waiting",
-        help_text="Текущий статус выполнения задачи",
+        help_text="Текущий статус выполнения задачи"
     )
     progress = models.IntegerField(
         default=0,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
-        help_text="Прогресс выполнения в процентах",
+        help_text="Прогресс выполнения в процентах (0-100%)"
     )
 
     # Временные параметры
     created_at = models.DateTimeField(
-        auto_now_add=True, editable=False, help_text="Дата и время создания задачи"
+        auto_now_add=True, editable=False,
+        help_text="Автоматически устанавливается при создании задачи"
     )
     updated_at = models.DateTimeField(
-        auto_now=True, help_text="Дата и время последнего обновления"
+        auto_now=True,
+        help_text="Автоматически обновляется при каждом сохранении"
     )
     start_date = models.DateTimeField(
-        blank=True, null=True, help_text="Планируемая дата и время начала выполнения"
+        blank=True, null=True,
+        help_text="Планируемая дата и время начала выполнения"
     )
     end_date = models.DateTimeField(
-        blank=True, null=True, help_text="Планируемая дата и время завершения"
+        blank=True, null=True,
+        help_text="Планируемая дата и время завершения"
     )
     deadline = models.DateTimeField(
-        blank=True, null=True, help_text="Крайний срок выполнения задачи"
+        blank=True, null=True,
+        help_text="Крайний срок выполнения (дедлайн)"
     )
     deleted_at = models.DateTimeField(
-        blank=True, null=True, editable=False, help_text="Дата и время удаления задачи"
+        blank=True, null=True, editable=False,
+        help_text="Заполняется автоматически при удалении задачи"
     )
 
     # Связи и зависимости
@@ -81,17 +114,18 @@ class Task(models.Model):
         symmetrical=False,
         blank=True,
         related_name="task_dependencies",
-        help_text="Задачи, от которых зависит текущая",
+        help_text="Задачи, которые должны быть выполнены ДО текущей"
     )
     categories = models.ManyToManyField(
-        TaskCategory, blank=True, help_text="Категории задачи"
+        TaskCategory, blank=True,
+        help_text="Категории для классификации задач"
     )
     location = models.ForeignKey(
         Location,
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
-        help_text="Место выполнения задачи",
+        help_text="Физическое место выполнения задачи"
     )
 
     # Ответственные
@@ -99,7 +133,7 @@ class Task(models.Model):
         User,
         on_delete=models.PROTECT,
         related_name="created_tasks",
-        help_text="Создатель задачи",
+        help_text="Пользователь, создавший задачу"
     )
     last_editor = models.ForeignKey(
         User,
@@ -107,7 +141,7 @@ class Task(models.Model):
         related_name="edited_tasks",
         blank=True,
         null=True,
-        help_text="Последний пользователь, редактировавший задачу",
+        help_text="Последний пользователь, внёсший изменения"
     )
     assignee = models.ForeignKey(
         User,
@@ -115,117 +149,164 @@ class Task(models.Model):
         related_name="assigned_tasks",
         blank=True,
         null=True,
-        help_text="Ответственный исполнитель",
+        help_text="Основной исполнитель задачи"
     )
 
     # Дополнительные параметры
     complexity = models.IntegerField(
         default=5,
         validators=[MinValueValidator(1), MaxValueValidator(10)],
-        help_text="Сложность задачи по 10-балльной шкале",
+        help_text="Оценка сложности по 10-балльной шкале"
     )
     risk_level = models.CharField(
         max_length=10,
         choices=RISK_LEVEL_CHOICES,
         default="low",
-        help_text="Уровень риска выполнения задачи",
+        help_text="Оценка рисков при выполнении задачи"
     )
 
-    # Флаги
-    is_ready = models.BooleanField(default=False, help_text="Можно начинать выполнение")
-    is_recurring = models.BooleanField(default=False, help_text="Периодическая задача")
+    # Флаги состояния
+    is_ready = models.BooleanField(
+        default=False,
+        help_text="Готовность к выполнению (все зависимости выполнены)"
+    )
+    is_recurring = models.BooleanField(
+        default=False,
+        help_text="Повторяющаяся задача (например, ежедневная)"
+    )
     needs_approval = models.BooleanField(
-        default=False, help_text="Требует утверждения завершения"
+        default=False,
+        help_text="Требует подтверждения завершения руководителем"
     )
     is_template = models.BooleanField(
-        default=False, help_text="Использовать как шаблон"
+        default=False,
+        help_text="Используется как шаблон для создания новых задач"
     )
     is_deleted = models.BooleanField(
-        default=False, editable=False, help_text="Флаг удаления задачи"
+        default=False, editable=False,
+        help_text="Помечена как удалённая (мягкое удаление)"
     )
 
-    # Данные для анализа
+    # Данные для анализа производительности
     estimated_time = models.DurationField(
-        blank=True, null=True, help_text="Планируемое время выполнения"
+        blank=True, null=True,
+        help_text="Планируемая продолжительность выполнения"
     )
     actual_time = models.DurationField(
-        blank=True, null=True, help_text="Фактическое время выполнения"
+        blank=True, null=True,
+        help_text="Фактическое время, затраченное на выполнение"
     )
     quality_rating = models.IntegerField(
         blank=True,
         null=True,
         validators=[MinValueValidator(1), MaxValueValidator(5)],
-        help_text="Оценка качества выполнения (1-5)",
+        help_text="Оценка качества выполнения по 5-балльной шкале"
     )
     version = models.IntegerField(
-        default=1, editable=False, help_text="Версия задачи (счетчик изменений)"
+        default=1, editable=False,
+        help_text="Версия объекта (инкрементируется при изменениях)"
     )
 
-    # Дополнительные данные
+    # Финансовые и системные атрибуты
     budget = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         blank=True,
         null=True,
-        help_text="Бюджет задачи",
+        help_text="Выделенный бюджет в валюте системы"
     )
     cancel_reason = models.TextField(
-        blank=True, null=True, help_text="Причина отмены задачи"
+        blank=True, null=True,
+        help_text="Причина отмены задачи (обязателен при статусе 'canceled')"
     )
 
     # Специфичные поля
     time_intervals = models.JSONField(
-        default="",
-        help_text="Временные интервалы выполнения задачи",
+        default=list,
+        help_text="Диапазоны времени выполнения в формате JSON",
         blank=True,
         null=True,
     )
     reminders = models.JSONField(
-        default="",
-        help_text="Напоминания о задаче",
+        default=list,
+        help_text="Напоминания в формате [{'time': datetime, 'method': id}]",
         blank=True,
         null=True,
     )
     repeat_interval = models.DurationField(
-        blank=True, null=True, help_text="Интервал повторения для периодических задач"
+        blank=True, null=True,
+        help_text="Интервал повторения (для периодических задач)"
     )
     next_activation = models.DateTimeField(
-        blank=True, null=True, help_text="Дата следующей активации периодической задачи"
+        blank=True, null=True,
+        help_text="Дата следующего выполнения (для периодических задач)"
     )
 
-    # Теги и история
-    tags = TaggableManager(blank=True, help_text="Теги для классификации задач")
+    # Системы классификации и истории
+    tags = TaggableManager(
+        blank=True,
+        help_text="Гибкая система тегов для категоризации задач"
+    )
     history = HistoricalRecords(
         excluded_fields=["version", "is_deleted", "deleted_at"],
         inherit=True,
+        help_text="Автоматическое ведение истории изменений"
     )
 
-    # Связи ManyToMany
+    # Связи с другими моделями
     notifications = models.ManyToManyField(
-        NotificationMethod, blank=True, help_text="Способы уведомления о задаче"
+        NotificationMethod, blank=True,
+        help_text="Методы уведомления о событиях задачи"
     )
     links = models.ManyToManyField(
-        Link, through="TaskLink", blank=True, help_text="Связанные URL-ссылки"
+        Link, through="TaskLink", blank=True,
+        help_text="Связанные внешние ресурсы и документы"
     )
 
     def __str__(self):
+        """Строковое представление задачи в формате: Название (Статус)"""
         return f"{self.title} ({self.get_status_display()})"
 
     def delete(self, *args, **kwargs):
+        """
+        Реализация мягкого удаления задачи.
+        
+        Вместо физического удаления из базы:
+        1. Помечает задачу как удалённую (is_deleted=True)
+        2. Устанавливает дату удаления (deleted_at=текущее время)
+        3. Сохраняет объект
+        
+        Original DELETE-операции не выполняет.
+        """
         self.is_deleted = True
         self.deleted_at = timezone.now()
         self.save()
 
     class Meta:
+        """Мета-конфигурация модели задач"""
         verbose_name = "Задача"
         verbose_name_plural = "Задачи"
         ordering = ["-created_at"]
         indexes = [
+            # Составной индекс для фильтрации по статусу и удалённым задачам
             models.Index(fields=["is_deleted", "status"]),
+            
+            # Индекс для быстрого поиска по дедлайну
             models.Index(fields=["deadline"]),
+        ]
+        
+        # Дополнительные параметры
+        permissions = [
+            ("can_approve_task", "Может подтверждать завершение задач"),
+            ("can_assign_task", "Может назначать задачи другим пользователям"),
         ]
 
     @property
     def outgoing_dependencies(self):
-        """Задачи, которые зависят от текущей."""
+        """
+        Задачи, которые зависят от текущей (обратная зависимость).
+        
+        Returns:
+            QuerySet: Задачи, где текущая задача указана как зависимость
+        """
         return self.task_dependencies.all()

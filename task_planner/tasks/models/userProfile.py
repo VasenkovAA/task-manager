@@ -20,11 +20,25 @@ DEFAULT_GRAPH_SETTINGS = {
 
 
 class UserProfile(models.Model):
+    """
+    Модель расширения профиля пользователя.
+    
+    Хранит дополнительные настройки пользователя, 
+    в частности - параметры отображения графиков.
+    
+    Attributes:
+        user (OneToOneField): Связь с моделью User
+        graph_settings (JSONField): Настройки графиков в JSON-формате
+    """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     graph_settings = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return f"{self.user.username}'s profile"
+    class Meta:
+        """
+        Метаданные модели UserProfile.
+        """
 
 
 # Сигналы для автоматического создания профиля при создании пользователя

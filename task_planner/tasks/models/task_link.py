@@ -4,6 +4,15 @@ from tasks.models.link import Link
 
 
 class TaskLink(models.Model):
+    """
+    Промежуточная модель для связи задач и ссылок.
+    
+    Attributes:
+        task (ForeignKey): Связанная задача
+        link (ForeignKey): Связанная ссылка
+        description (CharField): Описание связи (необязательное)
+        created_at (DateTimeField): Дата создания связи (автозаполнение)
+    """
     task = models.ForeignKey(
         Task, on_delete=models.CASCADE, help_text="Связанная задача"
     )
@@ -18,6 +27,14 @@ class TaskLink(models.Model):
     )
 
     class Meta:
+        """
+        Метаданные модели TaskLink.
+        
+        Attributes:
+            unique_together (tuple): Комбинированная уникальность полей
+            verbose_name (str): Человекочитаемое имя в единственном числе
+            verbose_name_plural (str): Человекочитаемое имя во множественном числе
+        """
         unique_together = ("task", "link")
         verbose_name = "Связь задачи со ссылкой"
         verbose_name_plural = "Связи задач со ссылками"

@@ -3,6 +3,15 @@ from tasks.models.task import Task
 
 
 class FileAttachment(models.Model):
+    """
+    Модель для представления файловых вложений к задачам.
+    
+    Attributes:
+        task (ForeignKey): Связанная задача (Task)
+        file (FileField): Поле для загрузки файла
+        uploaded_at (DateTimeField): Дата/время загрузки файла (автозаполнение)
+        description (CharField): Описание файла (необязательное)
+    """
     task = models.ForeignKey(
         Task,
         on_delete=models.CASCADE,
@@ -23,5 +32,12 @@ class FileAttachment(models.Model):
         return f"Вложение {self.id} для задачи {self.task.title}"
 
     class Meta:
+        """
+        Метаданные модели FileAttachment.
+        
+        Attributes:
+            verbose_name (str): Человекочитаемое имя в единственном числе
+            verbose_name_plural (str): Человекочитаемое имя во множественном числе
+        """
         verbose_name = "Файловое вложение"
         verbose_name_plural = "Файловые вложения"
