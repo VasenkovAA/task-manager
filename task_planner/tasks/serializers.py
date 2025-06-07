@@ -10,8 +10,6 @@ from tasks.models import (
     FileAttachment,
 )
 from django.contrib.auth import get_user_model
-from rest_framework.exceptions import ValidationError
-from django.utils import timezone
 
 User = get_user_model()
 
