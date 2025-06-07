@@ -1,5 +1,5 @@
 {
   "extension": "html",
-  "ignore": "myapp/templates/myapp/plan_b/**,H006,H021,H023",
+  "ignore": "myapp/templates/myapp/plan_b/**,H006,H021,H023,D018",
   "profile": "django"
 }
