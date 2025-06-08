@@ -1,0 +1,704 @@
+[
+    {
+        "url": "/api/task-categories/",
+        "module": "tasks.views.TaskCategoryViewSet",
+        "name": "taskcategory-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/task-categories\\.<format>/",
+        "module": "tasks.views.TaskCategoryViewSet",
+        "name": "taskcategory-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/task-categories/<pk>/",
+        "module": "tasks.views.TaskCategoryViewSet",
+        "name": "taskcategory-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/task-categories/<pk>\\.<format>/",
+        "module": "tasks.views.TaskCategoryViewSet",
+        "name": "taskcategory-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/notification-methods/",
+        "module": "tasks.views.NotificationMethodViewSet",
+        "name": "notificationmethod-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/notification-methods\\.<format>/",
+        "module": "tasks.views.NotificationMethodViewSet",
+        "name": "notificationmethod-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/notification-methods/<pk>/",
+        "module": "tasks.views.NotificationMethodViewSet",
+        "name": "notificationmethod-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/notification-methods/<pk>\\.<format>/",
+        "module": "tasks.views.NotificationMethodViewSet",
+        "name": "notificationmethod-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/locations/",
+        "module": "tasks.views.LocationViewSet",
+        "name": "location-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/locations\\.<format>/",
+        "module": "tasks.views.LocationViewSet",
+        "name": "location-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/locations/<pk>/",
+        "module": "tasks.views.LocationViewSet",
+        "name": "location-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/locations/<pk>\\.<format>/",
+        "module": "tasks.views.LocationViewSet",
+        "name": "location-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/links/",
+        "module": "tasks.views.LinkViewSet",
+        "name": "link-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/links\\.<format>/",
+        "module": "tasks.views.LinkViewSet",
+        "name": "link-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/links/<pk>/",
+        "module": "tasks.views.LinkViewSet",
+        "name": "link-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/links/<pk>\\.<format>/",
+        "module": "tasks.views.LinkViewSet",
+        "name": "link-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/task-links/",
+        "module": "tasks.views.TaskLinkViewSet",
+        "name": "tasklink-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/task-links\\.<format>/",
+        "module": "tasks.views.TaskLinkViewSet",
+        "name": "tasklink-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/task-links/<pk>/",
+        "module": "tasks.views.TaskLinkViewSet",
+        "name": "tasklink-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/task-links/<pk>\\.<format>/",
+        "module": "tasks.views.TaskLinkViewSet",
+        "name": "tasklink-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/attachments/",
+        "module": "tasks.views.FileAttachmentViewSet",
+        "name": "fileattachment-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/attachments\\.<format>/",
+        "module": "tasks.views.FileAttachmentViewSet",
+        "name": "fileattachment-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/attachments/<pk>/",
+        "module": "tasks.views.FileAttachmentViewSet",
+        "name": "fileattachment-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/attachments/<pk>\\.<format>/",
+        "module": "tasks.views.FileAttachmentViewSet",
+        "name": "fileattachment-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-list",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/overdue/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-overdue",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/overdue\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-overdue",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-detail",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/add_dependency/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-add-dependency",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/add_dependency\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-add-dependency",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/change_status/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-change-status",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/change_status\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-change-status",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/remove_dependency/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-remove-dependency",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/remove_dependency\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-remove-dependency",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/restore/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-restore",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/<pk>/restore\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-restore",
+        "decorators": ""
+    },
+    {
+        "url": "/api/",
+        "module": "rest_framework.routers.APIRootView",
+        "name": "api-root",
+        "decorators": ""
+    },
+    {
+        "url": "/api/<drf_format_suffix:format>",
+        "module": "rest_framework.routers.APIRootView",
+        "name": "api-root",
+        "decorators": ""
+    },
+    {
+        "url": "/swagger/",
+        "module": "drf_yasg.views.SchemaView",
+        "name": "schema-swagger-ui",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/",
+        "module": "django.contrib.admin.sites.index",
+        "name": "admin:index",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/login/",
+        "module": "django.contrib.admin.sites.login",
+        "name": "admin:login",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/logout/",
+        "module": "django.contrib.admin.sites.logout",
+        "name": "admin:logout",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/password_change/",
+        "module": "django.contrib.admin.sites.password_change",
+        "name": "admin:password_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/password_change/done/",
+        "module": "django.contrib.admin.sites.password_change_done",
+        "name": "admin:password_change_done",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/autocomplete/",
+        "module": "django.contrib.admin.sites.autocomplete_view",
+        "name": "admin:autocomplete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/jsi18n/",
+        "module": "django.contrib.admin.sites.i18n_javascript",
+        "name": "admin:jsi18n",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/r/<path:content_type_id>/<path:object_id>/",
+        "module": "django.contrib.contenttypes.views.shortcut",
+        "name": "admin:view_on_site",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/group/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:auth_group_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/group/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:auth_group_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/group/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:auth_group_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/group/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:auth_group_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/group/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:auth_group_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/group/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/user/<id>/password/",
+        "module": "django.contrib.auth.admin.user_change_password",
+        "name": "admin:auth_user_password_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/user/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:auth_user_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/user/add/",
+        "module": "django.contrib.auth.admin.add_view",
+        "name": "admin:auth_user_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/user/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:auth_user_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/user/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:auth_user_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/user/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:auth_user_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/auth/user/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/taskcategory/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:tasks_taskcategory_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/taskcategory/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:tasks_taskcategory_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/taskcategory/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:tasks_taskcategory_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/taskcategory/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:tasks_taskcategory_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/taskcategory/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:tasks_taskcategory_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/taskcategory/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/notificationmethod/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:tasks_notificationmethod_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/notificationmethod/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:tasks_notificationmethod_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/notificationmethod/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:tasks_notificationmethod_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/notificationmethod/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:tasks_notificationmethod_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/notificationmethod/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:tasks_notificationmethod_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/notificationmethod/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/location/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:tasks_location_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/location/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:tasks_location_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/location/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:tasks_location_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/location/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:tasks_location_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/location/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:tasks_location_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/location/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/link/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:tasks_link_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/link/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:tasks_link_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/link/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:tasks_link_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/link/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:tasks_link_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/link/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:tasks_link_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/link/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/task/<var>/history/admin/tasks/task/([/])/history/<var>/",
+        "module": "simple_history.admin.history_form_view",
+        "name": "admin:tasks_task_simple_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/task/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:tasks_task_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/task/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:tasks_task_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/task/<path:object_id>/history/",
+        "module": "simple_history.admin.history_view",
+        "name": "admin:tasks_task_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/task/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:tasks_task_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/task/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:tasks_task_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/task/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/tasklink/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:tasks_tasklink_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/tasklink/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:tasks_tasklink_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/tasklink/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:tasks_tasklink_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/tasklink/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:tasks_tasklink_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/tasklink/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:tasks_tasklink_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/tasklink/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/fileattachment/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:tasks_fileattachment_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/fileattachment/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:tasks_fileattachment_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/fileattachment/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:tasks_fileattachment_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/fileattachment/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:tasks_fileattachment_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/fileattachment/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:tasks_fileattachment_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/tasks/fileattachment/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/taggit/tag/merge-tags/",
+        "module": "taggit.admin.merge_tags_view",
+        "name": "admin:taggit_tag_merge_tags",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/taggit/tag/",
+        "module": "django.contrib.admin.options.changelist_view",
+        "name": "admin:taggit_tag_changelist",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/taggit/tag/add/",
+        "module": "django.contrib.admin.options.add_view",
+        "name": "admin:taggit_tag_add",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/taggit/tag/<path:object_id>/history/",
+        "module": "django.contrib.admin.options.history_view",
+        "name": "admin:taggit_tag_history",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/taggit/tag/<path:object_id>/delete/",
+        "module": "django.contrib.admin.options.delete_view",
+        "name": "admin:taggit_tag_delete",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/taggit/tag/<path:object_id>/change/",
+        "module": "django.contrib.admin.options.change_view",
+        "name": "admin:taggit_tag_change",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/taggit/tag/<path:object_id>/",
+        "module": "django.views.generic.base.RedirectView",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/<app_label>/",
+        "module": "django.contrib.admin.sites.app_index",
+        "name": "admin:app_list",
+        "decorators": ""
+    },
+    {
+        "url": "/admin/<url>",
+        "module": "django.contrib.admin.sites.catch_all_view",
+        "name": "",
+        "decorators": ""
+    },
+    {
+        "url": "/tasks/<int:pk>/form/",
+        "module": "tasks.views.task_form",
+        "name": "task-form",
+        "decorators": ""
+    },
+    {
+        "url": "/",
+        "module": "tasks.views.task_graph",
+        "name": "task_graph",
+        "decorators": ""
+    },
+    {
+        "url": "/update-graph-settings/",
+        "module": "tasks.views.update_graph_settings",
+        "name": "update_graph_settings",
+        "decorators": ""
+    }
+]

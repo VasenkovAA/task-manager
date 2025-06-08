@@ -1,0 +1,71 @@
+default_language_version:
+    python: python3.11
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff
+
+  - repo: local
+    hooks:
+      # Основная схема
+      - id: generate-schema-full
+        name: Full Schema
+        entry: python task_planner/manage.py graph_models --pydot -a -g -o docs/automatic/schema_full.png
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Схема без полей моделей
+      - id: generate-schema-no-fields
+        name: Schema without fields
+        entry: python task_planner/manage.py graph_models --pydot -a -g -d -o docs/automatic/schema_no_fields.png
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Схема без связей наследования
+      - id: generate-schema-no-inheritance
+        name: Schema without inheritance
+        entry: python task_planner/manage.py graph_models --pydot -a -g -n -o docs/automatic/schema_no_inheritance.png
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Минималистичная схема (без полей и наследования)
+      - id: generate-schema-minimal
+        name: Minimal Schema
+        entry: python task_planner/manage.py graph_models --pydot -a -g -d -n -o docs/automatic/schema_minimal.png
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # Схема с verbose-именами (использует человекочитаемые названия):
+      - id: generate-schema-verbose
+        name: Verbose Schema
+        entry: python task_planner/manage.py graph_models --pydot -a -g --verbose-names -o docs/automatic/schema_verbose.png
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: generate-urls-docs
+        name: Generate URLs Documentation
+        entry: python task_planner/manage.py show_urls --format pretty-json > docs/automatic/urls.json
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: check-migrations
+        name: Check for Missing Migrations
+        entry: python task_planner/manage.py makemigrations --dry-run --check
+        language: system
+        types: [python]
+        pass_filenames: false

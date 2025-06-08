@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "simple_history",
     "drf_yasg",
     "rest_framework",
+    "django_extensions",
 ]
 
 MIDDLEWARE = [
