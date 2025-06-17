@@ -58,7 +58,7 @@ repos:
 
       - id: generate-urls-docs
         name: Generate URLs Documentation
-        entry: python task_planner/manage.py show_urls --format pretty-json > docs/automatic/urls.json
+        entry: sh -c "python task_planner/manage.py show_urls --format pretty-json > docs/automatic/urls.json"
         language: system
         types: [python]
         pass_filenames: false

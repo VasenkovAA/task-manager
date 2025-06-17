@@ -17,7 +17,7 @@ User = get_user_model()
 class Task(models.Model):
     """
     Основная модель системы, представляющая задачу с комплексными атрибутами управления.
-    
+
     Включает:
     - Систему статусов выполнения
     - Иерархию зависимостей между задачами
@@ -27,19 +27,19 @@ class Task(models.Model):
     - Систему уведомлений
     - Историю изменений
     - Механизм мягкого удаления
-    
+
     Статусы задачи:
         waiting: Ожидает начала выполнения
         progress: Активно выполняется
         done: Успешно завершена
         canceled: Отменена
-    
+
     Уровни риска:
         low: Низкий риск выполнения
         medium: Средний риск
         high: Высокий риск
     """
-    
+
     # Константы статусов и уровней риска
     STATUS_CHOICES = [
         ("waiting", "Ожидает начала"),
@@ -332,24 +332,24 @@ class Task(models.Model):
     def clean(self):
         """Расширенная валидация перед сохранением"""
         super().clean()
-        
+
         # Валидация временных интервалов
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValidationError(
                 {"end_date": "Дата завершения не может быть раньше даты начала"}
             )
-            
+
         if self.deadline and self.deadline < timezone.now() and not self.is_deleted:
             raise ValidationError(
                 {"deadline": "Дедлайн не может быть в прошлом для активной задачи"}
             )
-            
+
         # Проверка причины отмены
         if self.status == "canceled" and not self.cancel_reason:
             raise ValidationError(
                 {"cancel_reason": "Требуется указать причину отмены задачи"}
             )
-            
+
         # Валидация JSON-полей
         for field in ["reminders", "time_intervals"]:
             value = getattr(self, field)
@@ -374,19 +374,20 @@ class Task(models.Model):
     def delete(self, *args, **kwargs):
         """
         Реализация мягкого удаления задачи.
-        
-        Вместо физического удаления из базы:
-        1. Помечает задачу как удалённую (is_deleted=True)
-        2. Устанавливает дату удаления (deleted_at=текущее время)
-        3. Сохраняет объект
-        
-        Original DELETE-операции не выполняет.
         """
         if not self.is_deleted:
             self.is_deleted = True
             self.deleted_at = timezone.now()
-            self.status = "canceled"  # Автоматическая отмена при удалении
+            self.status = "canceled"
             self.save()
+        return  # Возвращаемся без вызова super().delete()
+
+    def hard_delete(self, *args, **kwargs):
+        """
+        Полное удаление задачи из БД.
+        """
+        # Вызываем оригинальный метод удаления
+        super().delete(*args, **kwargs)
 
     def restore(self):
         """Восстановление мягко удаленной задачи"""
@@ -395,6 +396,31 @@ class Task(models.Model):
             self.deleted_at = None
             self.status = "waiting"  # Сброс статуса при восстановлении
             self.save()
+
+    def save(self, *args, **kwargs):
+        # Получаем текущий статус из БД перед сохранением (если запись уже существует)
+        old_status = None
+        if self.id:
+            old_status = Task.objects.filter(id=self.id).values_list('status', flat=True).first()
+
+        # Сохраняем задачу
+        super().save(*args, **kwargs)
+
+        # Проверяем изменение статуса на done/canceled
+        if old_status != self.status and self.status in ['done', 'canceled']:
+            # Обрабатываем все задачи, зависящие от текущей
+            for dependent_task in self.outgoing_dependencies.all():
+                # Проверяем все зависимости целевой задачи
+                all_deps_completed = True
+                for dep in dependent_task.dependencies.all():
+                    if dep.status not in ['done', 'canceled']:
+                        all_deps_completed = False
+                        break
+
+                # Если все зависимости выполнены/отменены - обновляем флаг
+                if all_deps_completed and not dependent_task.is_ready:
+                    dependent_task.is_ready = True
+                    dependent_task.save()
 
     @property
     def is_overdue(self):
@@ -407,7 +433,7 @@ class Task(models.Model):
     def outgoing_dependencies(self):
         """
         Задачи, которые зависят от текущей (обратная зависимость).
-        
+
         Returns:
             QuerySet: Задачи, где текущая задача указана как зависимость
         """
@@ -421,16 +447,16 @@ class Task(models.Model):
         indexes = [
             # Составной индекс для фильтрации по статусу и удалённым задачам
             models.Index(fields=["is_deleted", "status"]),
-            
+
             # Индекс для быстрого поиска по дедлайну
             models.Index(fields=["deadline"]),
-            
+
             # Дополнительные индексы для частых запросов
             models.Index(fields=["priority"]),
             models.Index(fields=["assignee"]),
             models.Index(fields=["is_ready"]),
         ]
-        
+
         # Дополнительные параметры
         permissions = [
             ("can_approve_task", "Может подтверждать завершение задач"),

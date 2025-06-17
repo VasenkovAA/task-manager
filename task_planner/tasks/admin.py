@@ -11,7 +11,7 @@ from .models import (
     FileAttachment,
 )
 from django.utils.translation import gettext_lazy as _
-
+from django import forms
 
 @admin.register(TaskCategory)
 class TaskCategoryAdmin(admin.ModelAdmin):
@@ -163,10 +163,35 @@ class DependencyFilter(admin.SimpleListFilter):
             return queryset.filter(dependencies__isnull=True)
 
 
+# Кастомная форма для валидации задач
+class TaskAdminForm(forms.ModelForm):
+    class Meta:
+        model = Task
+        fields = '__all__'
+
+    def clean(self):
+        """
+        Валидация данных формы. Автоматически устанавливает прогресс 100%
+        при завершении задачи, если текущее значение отличается.
+        """
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        progress = cleaned_data.get('progress')
+
+        if status == 'done' and progress != 100:
+            cleaned_data['progress'] = 100
+
+        return cleaned_data
+
+
+
+
 @admin.register(Task)
 class TaskAdmin(SimpleHistoryAdmin):
-    """Административный интерфейс для задач с расширенными функциями"""
+    """Административный интерфейс для управления задачами с историей изменений"""
+    form = TaskAdminForm  # Используем кастомную форму валидации
 
+    # Конфигурация отображения списка задач
     list_display = [
         "id",
         "title_short",
@@ -179,61 +204,6 @@ class TaskAdmin(SimpleHistoryAdmin):
         "is_ready",
     ]
     list_display_links = ["id", "title_short"]
-
-    def title_short(self, obj):
-        """Сокращенное название для отображения в списке"""
-        return obj.title[:40] + "..." if len(obj.title) > 40 else obj.title
-
-    title_short.short_description = _("Название")
-
-    def progress_bar(self, obj):
-        """Отображение прогресса в виде полосы"""
-        color = {
-            "waiting": "gray",
-            "progress": "blue",
-            "done": "green",
-            "canceled": "red",
-        }.get(obj.status, "gray")
-        return format_html(
-            '<div style="background:lightgray; width:100px; height:20px; border:1px solid #ccc;">'
-            '<div style="background:{1}; width:{0}%; height:100%;"></div>'
-            "</div> <span>{0}%</span>",
-            obj.progress,
-            color,
-        )
-
-    progress_bar.short_description = _("Прогресс")
-    progress_bar.allow_tags = True
-
-    def assignee_name(self, obj):
-        """Имя исполнителя с ссылкой на профиль"""
-        if obj.assignee:
-            return format_html(
-                '<a href="/admin/auth/user/{0}/change/">{1}</a>',
-                obj.assignee.id,
-                obj.assignee.username,
-            )
-        return "-"
-
-    assignee_name.short_description = _("Исполнитель")
-
-    def is_overdue(self, obj):
-        """Пометка просроченных задач"""
-        return obj.is_overdue
-
-    is_overdue.short_description = _("Просрочена")
-    is_overdue.boolean = True
-
-    def get_queryset(self, request):
-        """Оптимизация запросов с предварительной загрузкой данных"""
-        return (
-            super()
-            .get_queryset(request)
-            .select_related("author", "last_editor", "assignee", "location")
-            .prefetch_related("dependencies", "categories", "notifications", "tags")
-            .defer("description", "time_intervals", "reminders")
-        )
-
     list_filter = [
         "status",
         "priority",
@@ -241,7 +211,7 @@ class TaskAdmin(SimpleHistoryAdmin):
         "is_deleted",
         "is_ready",
         "is_recurring",
-        DependencyFilter,
+        # DependencyFilter удален из-за отсутствия модуля
     ]
     search_fields = ["title", "description", "assignee__username"]
     readonly_fields = [
@@ -258,169 +228,215 @@ class TaskAdmin(SimpleHistoryAdmin):
     filter_horizontal = ["dependencies", "categories", "notifications"]
     raw_id_fields = ["author", "last_editor", "assignee"]
     inlines = [TaskLinkInline, FileAttachmentInline]
-    actions = ["mark_as_done", "mark_as_canceled", "soft_delete_tasks"]
+    actions = [
+        "mark_as_done",
+        "mark_as_canceled",
+        "soft_delete_tasks",
+        "hard_delete_tasks"
+    ]
     list_per_page = 25
     save_on_top = True
 
-    def outgoing_dependencies(self, obj):
-        """Отображение исходящих зависимостей"""
-        deps = obj.dependent_tasks.all()
-        if not deps:
-            return "-"
-        return format_html(
-            "<ul>{}</ul>",
-            "".join(
-                [
-                    f'<li><a href="/admin/tasks/task/{t.id}/change/">{t.title}</a></li>'
-                    for t in deps
-                ]
+    # Группировка полей в интерфейсе редактирования
+    fieldsets = (
+        (_("Основная информация"), {
+            "fields": (
+                "title",
+                "description",
+                "status",
+                "progress",
+                "progress_bar",
+                "dependencies",
+                "outgoing_dependencies",
+            )
+        }),
+        (_("Категории и метаданные"), {
+            "fields": ("priority", "categories", "location", "tags"),
+            "classes": ("collapse",),
+        }),
+        (_("Ответственные лица"), {
+            "fields": ("author", "assignee", "last_editor")
+        }),
+        (_("Временные параметры"), {
+            "fields": (
+                ("start_date", "end_date"),
+                "deadline",
+                ("created_at", "updated_at", "deleted_at"),
+                "is_overdue",
+            )
+        }),
+        (_("Дополнительные параметры"), {
+            "fields": (
+                "complexity",
+                "risk_level",
+                "estimated_time",
+                "actual_time",
+                "budget",
+                "quality_rating",
+                "time_intervals",
+                "reminders",
             ),
+            "classes": ("collapse",),
+        }),
+        (_("Флаги состояния"), {
+            "fields": (
+                "is_ready",
+                "is_recurring",
+                "needs_approval",
+                "is_template",
+                "is_deleted",
+            ),
+            "classes": ("collapse",),
+        }),
+        (_("Повторение и уведомления"), {
+            "fields": ("repeat_interval", "next_activation", "notifications"),
+            "classes": ("collapse",),
+        }),
+        (_("Системная информация"), {
+            "fields": ("version", "cancel_reason"),
+            "classes": ("collapse",),
+        }),
+    )
+
+    def title_short(self, obj):
+        """Сокращает название задачи до 40 символов для отображения в списке"""
+        return obj.title[:40] + "..." if len(obj.title) > 40 else obj.title
+    title_short.short_description = _("Название")
+
+    def progress_bar(self, obj):
+        """
+        Визуализирует прогресс выполнения задачи в виде цветной полосы.
+        Цвет зависит от статуса задачи.
+        """
+        color = {
+            "waiting": "gray",
+            "progress": "blue",
+            "done": "green",
+            "canceled": "red",
+        }.get(obj.status, "gray")
+
+        return format_html(
+            '<div style="background:lightgray; width:100px; height:20px; border:1px solid #ccc;">'
+            '<div style="background:{1}; width:{0}%; height:100%;"></div>'
+            '</div> <span>{0}%</span>',
+            obj.progress,
+            color,
+        )
+    progress_bar.short_description = _("Прогресс")
+    progress_bar.allow_tags = True
+
+    def assignee_name(self, obj):
+        """Отображает имя исполнителя с ссылкой на его профиль"""
+        return format_html(
+            '<a href="/admin/auth/user/{}/change/">{}</a>',
+            obj.assignee.id,
+            obj.assignee.username,
+        ) if obj.assignee else "-"
+    assignee_name.short_description = _("Исполнитель")
+
+    def is_overdue(self, obj):
+        """Определяет, просрочена ли задача (булево значение)"""
+        return obj.is_overdue
+    is_overdue.short_description = _("Просрочена")
+    is_overdue.boolean = True
+
+    def get_queryset(self, request):
+        """
+        Оптимизирует запросы с помощью:
+        - select_related для ForeignKey полей
+        - prefetch_related для ManyToMany полей
+        - defer для отложенной загрузки тяжелых полей
+        """
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("author", "last_editor", "assignee", "location")
+            .prefetch_related("dependencies", "categories", "notifications", "tags")
+            .defer("description", "time_intervals", "reminders")
         )
 
+    def outgoing_dependencies(self, obj):
+        """Отображает список исходящих зависимостей в виде HTML-списка"""
+        deps = obj.dependent_tasks.all()
+        return format_html(
+            "<ul>{}</ul>",
+            "".join(f'<li><a href="/admin/tasks/task/{t.id}/change/">{t.title}</a></li>' for t in deps)
+        ) if deps else "-"
     outgoing_dependencies.short_description = _("Исходящие зависимости")
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        """Фильтрация зависимостей для исключения удаленных задач"""
+        """Фильтрует зависимости, исключая удаленные задачи"""
         if db_field.name == "dependencies":
             kwargs["queryset"] = Task.objects.filter(is_deleted=False)
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
-    def mark_as_done(self, request, queryset):
-        """Действие: пометить задачи как выполненные"""
-        updated = queryset.update(status="done", progress=100)
-        self.message_user(request, f"{updated} задач помечены как выполненные")
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Переопределяет виджет для полей-связей на пользователей"""
+        if db_field.name in ["author", "assignee", "last_editor"]:
+            return db_field.formfield(**kwargs)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    mark_as_done.short_description = _("Пометить выбранные задачи как выполненные")
+    # Действия администратора
+    def mark_as_done(self, request, queryset):
+        """Помечает выбранные задачи как выполненные (статус: done, прогресс: 100%)"""
+        updated = queryset.update(status="done", progress=100)
+        self.message_user(request, f"{updated} {_('задач помечены как выполненные')}")
+    mark_as_done.short_description = _("Пометить как выполненные")
 
     def mark_as_canceled(self, request, queryset):
-        """Действие: пометить задачи как отмененные"""
+        """Помечает выбранные задачи как отмененные с указанием причины"""
         for task in queryset:
             if not task.cancel_reason:
                 task.cancel_reason = _("Отменено администратором")
             task.status = "canceled"
             task.save()
-        self.message_user(request, f"{queryset.count()} задач помечены как отмененные")
-
-    mark_as_canceled.short_description = _("Пометить выбранные задачи как отмененные")
+        self.message_user(request, f"{queryset.count()} {_('задач помечены как отмененные')}")
+    mark_as_canceled.short_description = _("Пометить как отмененные")
 
     def soft_delete_tasks(self, request, queryset):
-        """Действие: мягкое удаление задач"""
+        """Выполняет мягкое удаление выбранных задач (помечает is_deleted=True)"""
         for task in queryset:
-            task.delete()  # Используем кастомный метод delete модели
-        self.message_user(request, f"{queryset.count()} задач помечены как удаленные")
+            task.delete()  # Использует кастомный метод delete модели
+        self.message_user(request, f"{queryset.count()} {_('задач помечены как удаленные')}")
+    soft_delete_tasks.short_description = _("Мягкое удаление")
 
-    soft_delete_tasks.short_description = _("Мягкое удаление выбранных задач")
+    def hard_delete_tasks(self, request, queryset):
+        """Действие: полное удаление задач из БД"""
+        count = 0
+        for task in queryset:
+            # Вызываем метод hard_delete модели
+            task.hard_delete()
+            count += 1
+        self.message_user(request, f"Полностью удалено {count} задач")
+
+    hard_delete_tasks.short_description = _("Полное удаление выбранных задач")
+
+    def save_model(self, request, obj, form, change):
+        """
+        Обрабатывает сохранение модели:
+        1. Устанавливает автора при создании
+        2. Обновляет последнего редактора
+        3. Автоматически выставляет прогресс 100% для завершенных задач
+        """
+        if not obj.pk:
+            obj.author = request.user
+
+        obj.last_editor = request.user
+
+        if obj.status == "done" and obj.progress < 100:
+            obj.progress = 100
+
+        super().save_model(request, obj, form, change)
 
     def get_actions(self, request):
-        """Скрытие стандартного действия удаления"""
+        """Удаляет стандартное действие удаления из списка действий"""
         actions = super().get_actions(request)
-        if "delete_selected" in actions:
-            del actions["delete_selected"]
+        actions.pop('delete_selected', None)
         return actions
 
     def get_exclude(self, request, obj=None):
-        """Скрытие технических полей при создании"""
-        if obj is None:  # При создании новой задачи
-            return ["is_deleted", "deleted_at", "history"]
-        return super().get_exclude(request, obj)
-
-    fieldsets = (
-        (
-            _("Основное"),
-            {
-                "fields": (
-                    "title",
-                    "description",
-                    "priority",
-                    "status",
-                    "progress",
-                    "progress_bar",  # Добавлен визуальный индикатор
-                )
-            },
-        ),
-        (
-            _("Временные параметры"),
-            {
-                "fields": (
-                    ("start_date", "end_date"),
-                    "deadline",
-                    ("created_at", "updated_at", "deleted_at"),
-                    "is_overdue",  # Добавлен флаг просроченности
-                )
-            },
-        ),
-        (
-            _("Связи"),
-            {
-                "fields": (
-                    "dependencies",
-                    "outgoing_dependencies",  # Улучшенное отображение
-                    "categories",
-                    "location",
-                )
-            },
-        ),
-        (
-            _("Ответственные"),
-            {
-                "fields": (
-                    "author",
-                    "assignee",
-                    "last_editor",
-                )
-            },
-        ),
-        (
-            _("Дополнительные параметры"),
-            {
-                "fields": (
-                    "complexity",
-                    "risk_level",
-                    "estimated_time",
-                    "actual_time",
-                    "budget",
-                    "quality_rating",
-                    "time_intervals",
-                    "reminders",
-                ),
-                "classes": ("collapse",),  # Сворачиваемый раздел
-            },
-        ),
-        (
-            _("Флаги состояния"),
-            {
-                "fields": (
-                    "is_ready",
-                    "is_recurring",
-                    "needs_approval",
-                    "is_template",
-                    "is_deleted",  # Добавлен флаг удаления
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-        (
-            _("Повторение"),
-            {
-                "fields": (
-                    "repeat_interval",
-                    "next_activation",
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-        (
-            _("Системное"),
-            {
-                "fields": (
-                    "tags",
-                    "version",
-                    "notifications",
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-    )
+        """Скрывает технические поля при создании новой задачи"""
+        return ["is_deleted", "deleted_at", "history"] if obj is None else super().get_exclude(request, obj)
 
 
 @admin.register(TaskLink)
