@@ -1,4 +1,3 @@
-
 {% block content %}
 <div class="card">
     <div class="card-header">
@@ -7,6 +6,7 @@
             <button class="btn btn-sm btn-outline-secondary" id="zoomIn">+</button>
             <button class="btn btn-sm btn-outline-secondary" id="zoomOut">-</button>
             <button class="btn btn-sm btn-outline-primary" id="fit">Авторазмер</button>
+            <button class="btn btn-sm btn-outline-info" id="resetLayout">Сбросить расположение</button>
         </div>
     </div>
     <div class="card-body">
@@ -16,12 +16,15 @@
                         border: 1px solid #ddd"></div>
     </div>
 </div>
-<script src="https://unpkg.com/gojs/release/go.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/backbone.js/1.4.0/backbone-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jointjs/3.5.0/joint.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jointjs/3.5.0/joint.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const $ = go.GraphObject.make;
-
         // Настройки по умолчанию
         const defaultSettings = {
             taskBackground: "#FFFFFF",
@@ -38,223 +41,400 @@
         };
 
         // Получаем настройки пользователя или используем по умолчанию
-        const userSettings = {% if request.user.is_authenticated and request.user.user_settings %}{{ request.user.user_settings | safe }}{% else %}{
-        taskBackground: "#FFFFFF",
-        borderColors: {
-            done: "#4CAF50",
-            waiting: "#FFEB3B",
-            canceled: "#9E9E9E",
-            progress: "#2196F3"
-        },
-        deadlineIndicator: true,
-        showProgressBar: true,
-        showDependencyProgress: true,
-        showStatus: true
-    }{% endif %};
+        const userSettings = {% if request.user.is_authenticated and request.user.user_settings %}{{ request.user.user_settings | safe }}{% else %}defaultSettings{% endif %};
 
-    // Инициализация диаграммы
-    const diagram = $(go.Diagram, "diagramDiv", {
-        initialContentAlignment: go.Spot.Center,
-        "undoManager.isEnabled": true,
-        layout: $(go.TreeLayout, {
-
-                layerSpacing: 60,           // Увеличенное расстояние между уровнями
-                nodeSpacing: 30,            // Расстояние между узлами
-                compaction: go.TreeLayout.CompactionBlock, // Плотное расположение
-                alignment: go.TreeLayout.AlignmentStart,   // Выравнивание по началу
-                arrangement: go.TreeLayout.ArrangementVertical,
-                setsPortSpot: false,
-                setsChildPortSpot: false,
-
-                // Настройки для минимизации пересечений
-
-                layerStyle: go.TreeLayout.LayerUniform,    // Единый стиль слоев
-                alternateAngle: false,
-                alternateLayerSpacing: 0,
-                alternateNodeSpacing: 0,
-                alternateAlignment: go.TreeLayout.AlignmentStart
-        })
-    });
-
-    // Шаблон узла задачи
-    diagram.nodeTemplate =
-        $(go.Node, "Auto", {
-            cursor: "pointer",
-            doubleClick: (e, node) => {
-                window.location.href = `/tasks/${node.data.key}/form/`;
+        // Создаем граф и бумагу
+        const graph = new joint.dia.Graph();
+        const paper = new joint.dia.Paper({
+            el: document.getElementById('diagramDiv'),
+            model: graph,
+            width: '100%',
+            height: 1100,
+            gridSize: 1,
+            drawGrid: true,
+            gridSize: 10,
+            background: {
+                color: '#fafafa'
+            },
+            // Включаем интерактивность для перемещения и навигации
+            interactive: {
+                elementMove: true,
+                linkMove: false,
+                arrowheadMove: false,
+                vertexMove: false,
+                vertexAdd: false,
+                useLinkTools: false
+            },
+            // Настройки для перемещения по графу
+            panning: {
+                enabled: true,
+                modifiers: ['shift'] // Перемещение по графу при зажатой Shift
+            },
+            mousewheel: {
+                enabled: true,
+                minScale: 0.1,
+                maxScale: 3,
+                modifiers: ['ctrl', 'meta'] // Масштабирование колесиком мыши с Ctrl
             }
-        },
-            // Основная форма узла
-            $(go.Shape, "Rectangle", {
-                fill: userSettings.taskBackground,
-                strokeWidth: 2,
-                portId: ""
-            },
-                new go.Binding("stroke", "status", s => userSettings.borderColors[s] || "#1F4963")
-            ),
+        });
 
-            $(go.Panel, "Vertical", {
-                margin: 8
-            },
-                // Заголовок задачи с индикатором дедлайна
-                $(go.Panel, "Horizontal", {
-                    stretch: go.GraphObject.Horizontal
+        // Сохраняем исходные позиции для сброса
+        let originalPositions = new Map();
+
+        // Функция для получения цвета по статусу
+        function getBorderColor(status) {
+            return userSettings.borderColors[status] || "#1F4963";
+        }
+
+        // Создание пользовательского элемента задачи
+        joint.shapes.app = {};
+        joint.shapes.app.Task = joint.dia.Element.define('app.Task', {
+            size: { width: 220, height: 120 },
+            attrs: {
+                root: {
+                    magnet: false,
                 },
-                    $(go.TextBlock, {
-                        font: "bold 14px Segoe UI",
-                        stroke: "#1F4963",
-                        margin: new go.Margin(0, 0, 4, 0),
-                        wrap: go.TextBlock.WrapFit,
-                        maxSize: new go.Size(180, NaN)
-                    },
-                        new go.Binding("text", "title")),
-
-                    // Индикатор просроченного дедлайна
-                    $(go.Shape, "Circle", {
-                        width: 10,
-                        height: 10,
-                        fill: "red",
-                        stroke: null,
-                        alignment: go.Spot.TopRight,
-                        margin: new go.Margin(2, 2, 0, 0),
-                        visible: false
-                    },
-                        new go.Binding("visible", "isOverdue"),
-                        new go.Binding("fill", "status", s => s === 'done' ? "#4CAF50" : "red"))
-                ),
-
-                // Статус задачи (если включен в настройках)
-                userSettings.showStatus ?
-                    $(go.TextBlock, {
-                        font: "italic 11px Segoe UI",
-                        stroke: "#666",
-                        margin: new go.Margin(0, 0, 4, 0)
-                    },
-                        new go.Binding("text", "status", s => `Статус: ${s.toUpperCase()}`)) :
-                    null,
-
-                // Прогресс выполнения и зависимостей
-                $(go.Panel, "Vertical", {
-                    margin: new go.Margin(4, 0, 0, 0)
+                body: {
+                    width: 'calc(w)',
+                    height: 'calc(h)',
+                    fill: '#FFFFFF',
+                    stroke: '#1F4963',
+                    strokeWidth: 2,
+                    rx: 3,
+                    ry: 3
                 },
-                    // Прогресс выполнения задачи (если включен)
-                    userSettings.showProgressBar ?
-                        $(go.Panel, "Horizontal", {
-                            stretch: go.GraphObject.Horizontal
-                        },
-                            $(go.TextBlock, {
-                                text: "Прогресс:",
-                                font: "11px Segoe UI",
-                                stroke: "#666",
-                                margin: new go.Margin(0, 5, 0, 0)
-                            }),
-                            $(go.Panel, "Horizontal", {
-                                width: 80,
-                                height: 8
+                title: {
+                    refX: 10,
+                    refY: 10,
+                    fontFamily: 'Segoe UI',
+                    fontWeight: 'bold',
+                    fontSize: 14,
+                    fill: '#1F4963',
+                    textWrap: {
+                        width: 180,
+                        height: 30,
+                        ellipsis: true
+                    }
+                },
+                overdueIndicator: {
+                    r: 5,
+                    refX: 210,
+                    refY: 15
+                },
+                statusText: {
+                    refX: 10,
+                    refY: 35,
+                    fontFamily: 'Segoe UI',
+                    fontStyle: 'italic',
+                    fontSize: 11,
+                    fill: '#666'
+                },
+                progressLabel: {
+                    refX: 10,
+                    refY: 60,
+                    fontFamily: 'Segoe UI',
+                    fontSize: 11,
+                    fill: '#666'
+                },
+                progressBackground: {
+                    refX: 80,
+                    refY: 60,
+                    width: 80,
+                    height: 8,
+                    fill: '#EEE'
+                },
+                progressBar: {
+                    refX: 80,
+                    refY: 60,
+                    height: 8,
+                    fill: '#4CAF50'
+                },
+                dependencyLabel: {
+                    refX: 10,
+                    refY: 85,
+                    fontFamily: 'Segoe UI',
+                    fontSize: 11,
+                    fill: '#666'
+                },
+                dependencyText: {
+                    refX: 85,
+                    refY: 85,
+                    fontFamily: 'Segoe UI',
+                    fontSize: 11,
+                    fill: '#666'
+                }
+            }
+        }, {
+            markup: [{
+                tagName: 'rect',
+                selector: 'body'
+            }, {
+                tagName: 'text',
+                selector: 'title'
+            }, {
+                tagName: 'circle',
+                selector: 'overdueIndicator'
+            }, {
+                tagName: 'text',
+                selector: 'statusText'
+            }, {
+                tagName: 'text',
+                selector: 'progressLabel'
+            }, {
+                tagName: 'rect',
+                selector: 'progressBackground'
+            }, {
+                tagName: 'rect',
+                selector: 'progressBar'
+            }, {
+                tagName: 'text',
+                selector: 'dependencyLabel'
+            }, {
+                tagName: 'text',
+                selector: 'dependencyText'
+            }]
+        });
+
+        // Функция для применения древовидного расположения
+        function applyTreeLayout() {
+            const dagreGraph = new dagre.graphlib.Graph();
+            dagreGraph.setGraph({
+                rankdir: 'TB', // Top to Bottom
+                align: 'UL',  // Up Left
+                nodesep: 50,   // Расстояние между узлами
+                ranksep: 100   // Расстояние между уровнями
+            });
+            dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+            // Добавляем узлы в граф Dagre
+            graph.getElements().forEach(element => {
+                dagreGraph.setNode(element.id, {
+                    width: element.get('size').width,
+                    height: element.get('size').height
+                });
+            });
+
+            // Добавляем связи в граф Dagre
+            graph.getLinks().forEach(link => {
+                dagreGraph.setEdge(
+                    link.get('source').id,
+                    link.get('target').id
+                );
+            });
+
+            // Рассчитываем расположение
+            dagre.layout(dagreGraph);
+
+            // Применяем позиции к элементам
+            dagreGraph.nodes().forEach(id => {
+                const node = dagreGraph.node(id);
+                const element = graph.getCell(id);
+                if (element) {
+                    const newPosition = {
+                        x: node.x - node.width / 2,
+                        y: node.y - node.height / 2
+                    };
+
+                    // Сохраняем оригинальную позицию для сброса
+                    originalPositions.set(id, newPosition);
+
+                    element.position(newPosition.x, newPosition.y);
+                }
+            });
+        }
+
+        // Функция для сброса расположения
+        function resetLayout() {
+            originalPositions.forEach((position, id) => {
+                const element = graph.getCell(id);
+                if (element) {
+                    element.position(position.x, position.y);
+                }
+            });
+            paper.scaleContentToFit({ padding: 50 });
+        }
+
+        // Загрузка данных и построение графа
+        async function loadTasks() {
+            try {
+                const response = await axios.get('/api/tasks/');
+                const tasks = response.data;
+                const elements = [];
+
+                // Создаем элементы задач
+                tasks.forEach(task => {
+                    const now = new Date();
+                    const deadline = task.deadline ? new Date(task.deadline) : null;
+                    const isOverdue = deadline && deadline < now && task.status !== 'done';
+
+                    const taskElement = new joint.shapes.app.Task({
+                        id: task.id.toString(),
+                        position: { x: 0, y: 0 }, // Временная позиция
+                        size: { width: 220, height: 120 },
+                        attrs: {
+                            body: {
+                                fill: userSettings.taskBackground,
+                                stroke: getBorderColor(task.status)
                             },
-                                $(go.Shape, "Rectangle", {
-                                    fill: "#EEE",
-                                    stroke: null,
-                                    width: 80,
-                                    height: 8
-                                }),
-                                $(go.Shape, "Rectangle", {
-                                    fill: "#4CAF50",
-                                    stroke: null,
-                                    width: 0,
-                                    height: 8,
-                                    alignment: go.Spot.Left
-                                },
-                                    new go.Binding("width", "progress", p => p))
-                            )
-                        ) : null,
-
-                    // Прогресс зависимостей (если включен)
-                    userSettings.showDependencyProgress ?
-                        $(go.Panel, "Horizontal", {
-                            stretch: go.GraphObject.Horizontal
-                        },
-                            $(go.TextBlock, {
-                                text: "Зависимости:",
-                                font: "11px Segoe UI",
-                                stroke: "#666",
-                                margin: new go.Margin(4, 5, 0, 0)
-                            }),
-                            $(go.TextBlock, {
-                                font: "11px Segoe UI",
-                                stroke: "#666"
+                            title: {
+                                text: task.title
                             },
-                                new go.Binding("text", "dependencyProgress", p => `${Math.round(p)}% выполнено`))
-                        ) : null
-                )
-            )
-        );
+                            overdueIndicator: {
+                                fill: isOverdue
+                                    ? (task.status === 'done' ? '#4CAF50' : 'red')
+                                    : 'transparent'
+                            },
+                            statusText: {
+                                text: `Статус: ${task.status.toUpperCase()}`,
+                                display: userSettings.showStatus ? 'block' : 'none'
+                            },
+                            progressLabel: {
+                                text: 'Прогресс:',
+                                display: userSettings.showProgressBar ? 'block' : 'none'
+                            },
+                            progressBackground: {
+                                display: userSettings.showProgressBar ? 'block' : 'none'
+                            },
+                            progressBar: {
+                                width: task.progress * 0.8,
+                                display: userSettings.showProgressBar ? 'block' : 'none'
+                            },
+                            dependencyLabel: {
+                                text: 'Зависимости:',
+                                display: userSettings.showDependencyProgress ? 'block' : 'none'
+                            },
+                            dependencyText: {
+                                text: `${Math.round(task.completed_dependencies_percentage)}% выполнено`,
+                                display: userSettings.showDependencyProgress ? 'block' : 'none'
+                            }
+                        }
+                    });
 
-    // Шаблон связей между задачами
-    diagram.linkTemplate =
-        $(go.Link, {
-            curve: go.Curve.Bezier,
-            toEndSegmentLength: 30,
-            fromEndSegmentLength: 30
-        },
-            $(go.Shape, {
-                strokeWidth: 1.5,
-                stroke: "#9E9E9E"
-            })
-        );
-
-    // Загрузка данных
-    async function loadTasks() {
-        try {
-            const response = await axios.get('/api/tasks/');
-            const tasks = response.data;
-
-            const taskMap = new Map(tasks.map(task => [task.id, task]));
-            const nodes = [];
-            const links = [];
-
-            tasks.forEach(task => {
-                // Проверяем просрочен ли дедлайн
-                const now = new Date();
-                const deadline = task.deadline ? new Date(task.deadline) : null;
-                const isOverdue = deadline && deadline < now && task.status !== 'done';
-
-                nodes.push({
-                    key: task.id,
-                    title: task.title,
-                    status: task.status,
-                    progress: task.progress,
-                    dependencyProgress: task.completed_dependencies_percentage,
-                    isOverdue: isOverdue,
-                    deadline: task.deadline
+                    elements.push(taskElement);
                 });
 
-                // Строим связи из dependencies
-                task.dependencies.forEach(depId => {
-                    links.push({
-                        from: depId,
-                        to: task.id
+                // Создаем связи между задачами
+                const links = [];
+                tasks.forEach(task => {
+                    task.dependencies.forEach(depId => {
+                        const link = new joint.shapes.standard.Link({
+                            source: { id: depId.toString() },
+                            target: { id: task.id.toString() },
+                            attrs: {
+                                line: {
+                                    stroke: '#9E9E9E',
+                                    strokeWidth: 1.5
+                                }
+                            },
+                            connector: { name: 'smooth' },
+                            z: -1,
+                            // Делаем связи невыделяемыми
+                            interactive: false
+                        });
+                        links.push(link);
                     });
                 });
-            });
 
-            diagram.model = new go.GraphLinksModel({
-                nodeDataArray: nodes,
-                linkDataArray: links
-            });
+                // Добавляем все элементы и связи на граф
+                graph.resetCells([...elements, ...links]);
 
-        } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
+                // Применяем древовидное расположение
+                applyTreeLayout();
+
+                // Автоматически подгоняем размер после загрузки
+                setTimeout(() => {
+                    paper.scaleContentToFit({ padding: 50 });
+                }, 100);
+
+            } catch (error) {
+                console.error('Ошибка загрузки данных:', error);
+            }
         }
-    }
 
-    // Управление масштабом
-    document.getElementById('zoomIn').addEventListener('click', () => diagram.commandHandler.increaseZoom());
-    document.getElementById('zoomOut').addEventListener('click', () => diagram.commandHandler.decreaseZoom());
-    document.getElementById('fit').addEventListener('click', () => diagram.commandHandler.fitToBounds());
-
-    loadTasks();
+        // Обработка двойного клика по задаче
+        paper.on('element:pointerdblclick', (elementView) => {
+            window.location.href = `/tasks/${elementView.model.id}/form/`;
         });
-</script>
 
+        // Управление масштабом
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            const scale = paper.scale();
+            paper.scale(scale.sx * 1.2, scale.sy * 1.2);
+        });
+
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            const scale = paper.scale();
+            paper.scale(scale.sx / 1.2, scale.sy / 1.2);
+        });
+
+        document.getElementById('fit').addEventListener('click', () => {
+            paper.scaleContentToFit({ padding: 50 });
+        });
+
+        // Сброс расположения
+        document.getElementById('resetLayout').addEventListener('click', resetLayout);
+
+        // Перемещение по графу с помощью мыши
+        let isPanning = false;
+        let lastClientX, lastClientY;
+
+        paper.el.addEventListener('mousedown', (e) => {
+            // Начало перемещения при зажатии средней кнопки мыши
+            if (e.button === 1) {
+                isPanning = true;
+                lastClientX = e.clientX;
+                lastClientY = e.clientY;
+                paper.el.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isPanning) {
+                const dx = e.clientX - lastClientX;
+                const dy = e.clientY - lastClientY;
+                paper.translate(paper.translate().tx + dx, paper.translate().ty + dy);
+                lastClientX = e.clientX;
+                lastClientY = e.clientY;
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 1) {
+                isPanning = false;
+                paper.el.style.cursor = 'default';
+                e.preventDefault();
+            }
+        });
+
+        // Блокируем контекстное меню для средней кнопки мыши
+        paper.el.addEventListener('contextmenu', (e) => {
+            if (e.button === 1) e.preventDefault();
+        });
+
+        // Перемещение по графу с помощью клавиатуры
+        const PAN_STEP = 30;
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    paper.translate(paper.translate().tx, paper.translate().ty + PAN_STEP);
+                    break;
+                case 'ArrowDown':
+                    paper.translate(paper.translate().tx, paper.translate().ty - PAN_STEP);
+                    break;
+                case 'ArrowLeft':
+                    paper.translate(paper.translate().tx + PAN_STEP, paper.translate().ty);
+                    break;
+                case 'ArrowRight':
+                    paper.translate(paper.translate().tx - PAN_STEP, paper.translate().ty);
+                    break;
+            }
+        });
+
+        loadTasks();
+    });
+</script>
 {% endblock content %}
