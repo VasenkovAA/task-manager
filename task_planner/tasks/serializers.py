@@ -69,6 +69,14 @@ class TaskSerializer(serializers.ModelSerializer):
     progress = serializers.IntegerField(min_value=0, max_value=100)
     is_ready = serializers.BooleanField()
 
+    category_names = serializers.SerializerMethodField(
+        help_text="Названия категорий задачи"
+    )
+
+    def get_category_names(self, obj):
+        """Возвращает список названий категорий"""
+        return list(obj.categories.values_list('name', flat=True))
+
     author = UserSerializer(read_only=True)
     last_editor = UserSerializer(read_only=True)
     assignee = serializers.PrimaryKeyRelatedField(
@@ -144,6 +152,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "links",
             "attachments",
             "completed_dependencies_percentage",
+            "category_names",
         ]
         read_only_fields = [
             "id",

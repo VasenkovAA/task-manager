@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 import json
+from django.db.models import Prefetch
 
 from tasks.models import (
     TaskCategory,
@@ -108,15 +109,15 @@ class TaskViewSet(BaseViewSet):
     serializer_class = TaskSerializer
     # Добавляем явное определение queryset
     queryset = Task.objects.filter(is_deleted=False)
-    
+
     # Остальной код без изменений...
     search_fields = ['title', 'description', 'assignee__username']
     ordering_fields = [
-        'created_at', 'updated_at', 'deadline', 
+        'created_at', 'updated_at', 'deadline',
         'priority', 'progress', 'complexity'
     ]
     filterset_fields = [
-        'status', 'priority', 'risk_level', 
+        'status', 'priority', 'risk_level',
         'is_ready', 'is_recurring', 'is_template',
         'assignee', 'author'
     ]
@@ -128,21 +129,24 @@ class TaskViewSet(BaseViewSet):
         """
         # Используем базовый queryset вместо super().get_queryset()
         queryset = self.queryset
-        
+        category_prefetch = Prefetch(
+            'categories',
+            queryset=TaskCategory.objects.only('name')
+        )
         # Оптимизация связанных данных
         queryset = queryset.select_related(
             'author', 'last_editor', 'assignee', 'location'
         ).prefetch_related(
-            'dependencies', 'categories', 'notifications', 
-            'tags', 'links', 'attachments'
+            'dependencies',  'notifications',
+            'tags', 'links', 'attachments', category_prefetch
         )
-        
+
         # Аннотация зависимостей
         return queryset.annotate(
             total_dependencies=Count("dependencies", distinct=True),
             completed_dependencies=Count(
-                "dependencies", 
-                distinct=True, 
+                "dependencies",
+                distinct=True,
                 filter=Q(dependencies__status="done")
             ),
             completed_dependencies_percentage=Case(

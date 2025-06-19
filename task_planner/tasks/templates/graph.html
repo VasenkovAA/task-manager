@@ -10,7 +10,8 @@
         </div>
     </div>
     <div class="card-body">
-        <div id="diagramDiv" style="width: 100%; height: 1100px; background-color: #fafafa; border: 1px solid #ddd"></div>
+        <div id="diagramDiv" style="width: 100%; height: 1100px; background-color: #fafafa; border: 1px solid #ddd">
+        </div>
     </div>
 </div>
 
@@ -33,275 +34,288 @@
                 progress: "#2196F3"
             },
             deadlineIndicator: true,
-            showProgressBar: true,
             showDependencyProgress: true,
             showStatus: true
         };
 
         const userSettings = {% if request.user.is_authenticated and request.user.user_settings %}{{ request.user.user_settings | safe }}{% else %}defaultSettings{% endif %};
 
-        const graph = new joint.dia.Graph();
-        const paper = new joint.dia.Paper({
-            el: document.getElementById('diagramDiv'),
-            model: graph,
-            width: '100%',
-            height: 1100,
-            gridSize: 10,
-            background: { color: '#fafafa' },
-            interactive: { elementMove: true },
-            panning: { enabled: true, modifiers: ['shift'] },
-            mousewheel: { enabled: false }
-        });
+    const graph = new joint.dia.Graph();
+    const paper = new joint.dia.Paper({
+        el: document.getElementById('diagramDiv'),
+        model: graph,
+        width: '100%',
+        height: 1100,
+        gridSize: 10,
+        background: { color: '#fafafa' },
+        interactive: { elementMove: true },
+        panning: { enabled: true, modifiers: ['shift'] },
+        mousewheel: { enabled: false }
+    });
 
-        const diagramDiv = document.getElementById('diagramDiv');
-        diagramDiv.setAttribute('tabindex', '0');
-        diagramDiv.style.outline = 'none';
+    const diagramDiv = document.getElementById('diagramDiv');
+    diagramDiv.setAttribute('tabindex', '0');
+    diagramDiv.style.outline = 'none';
 
-        const originalPositions = new Map();
+    const originalPositions = new Map();
 
-        function getBorderColor(status) {
-            return userSettings.borderColors[status] || "#1F4963";
-        }
+    function getBorderColor(status) {
+        return userSettings.borderColors[status] || "#1F4963";
+    }
 
-        joint.shapes.app = {};
-        joint.shapes.app.Task = joint.dia.Element.define('app.Task', {
-            size: { width: 220, height: 120 },
-            movable: true,
-            attrs: {
-                root: { magnet: false },
-                body: {
-                    width: 'calc(w)', height: 'calc(h)',
-                    fill: '#FFFFFF', stroke: '#1F4963',
-                    strokeWidth: 2, rx: 3, ry: 3, cursor: 'move'
-                },
-                title: {
-                    refX: 10, refY: 10,
-                    fontFamily: 'Segoe UI', fontWeight: 'bold', fontSize: 14, fill: '#1F4963',
-                    textWrap: { width: 180, height: 30, ellipsis: true }
-                },
-                overdueIndicator: { r: 5, refX: 210, refY: 15 },
-                statusText: { refX: 10, refY: 35, fontFamily: 'Segoe UI', fontStyle: 'italic', fontSize: 11, fill: '#666' },
-                progressLabel: { refX: 10, refY: 60, fontFamily: 'Segoe UI', fontSize: 11, fill: '#666' },
-                progressBackground: { refX: 80, refY: 60, width: 80, height: 8, fill: '#EEE' },
-                progressBar: { refX: 80, refY: 60, height: 8, fill: '#4CAF50' },
-                dependencyLabel: { refX: 10, refY: 85, fontFamily: 'Segoe UI', fontSize: 11, fill: '#666' },
-                dependencyText: { refX: 85, refY: 85, fontFamily: 'Segoe UI', fontSize: 11, fill: '#666' }
+    joint.shapes.app = {};
+    joint.shapes.app.Task = joint.dia.Element.define('app.Task', {
+        size: { width: 220, height: 150 },
+        movable: true,
+        attrs: {
+            root: { magnet: false },
+            body: {
+                width: 'calc(w)', height: 'calc(h)',
+                fill: '#FFFFFF', stroke: '#1F4963',
+                strokeWidth: 2, rx: 3, ry: 3, cursor: 'move'
+            },
+            title: {
+                refX: 10, refY: 10,
+                fontFamily: 'Segoe UI', fontWeight: 'bold', fontSize: 14, fill: '#1F4963',
+                textWrap: { width: 180, height: 40, ellipsis: true }
+            },
+            overdueIndicator: { r: 5, refX: 210, refY: 15 },
+            statusText: { refX: 10, refY: 60, fontFamily: 'Segoe UI', fontStyle: 'italic', fontSize: 11, fill: '#666' },
+            categoryText: {
+                refX: 10, refY: 80,
+                fontFamily: 'Segoe UI', fontSize: 11, fill: '#666',
+                textWrap: { width: 200, height: 15, ellipsis: true }
+            },
+            dependencyLabel: { refX: 10, refY: 110, fontFamily: 'Segoe UI', fontSize: 11, fill: '#666' },
+            dependencyProgressBg: {
+                refX: 85, refY: 110,
+                width: 80, height: 8,
+                fill: '#EEE'
+            },
+            dependencyProgressBar: {
+                refX: 85, refY: 110,
+                height: 8,
+                fill: '#4CAF50'
             }
-        }, {
-            markup: [
-                { tagName: 'rect', selector: 'body' },
-                { tagName: 'text', selector: 'title' },
-                { tagName: 'circle', selector: 'overdueIndicator' },
-                { tagName: 'text', selector: 'statusText' },
-                { tagName: 'text', selector: 'progressLabel' },
-                { tagName: 'rect', selector: 'progressBackground' },
-                { tagName: 'rect', selector: 'progressBar' },
-                { tagName: 'text', selector: 'dependencyLabel' },
-                { tagName: 'text', selector: 'dependencyText' }
-            ]
+        }
+    }, {
+        markup: [
+            { tagName: 'rect', selector: 'body' },
+            { tagName: 'text', selector: 'title' },
+            { tagName: 'circle', selector: 'overdueIndicator' },
+            { tagName: 'text', selector: 'statusText' },
+            { tagName: 'text', selector: 'categoryText' },
+            { tagName: 'text', selector: 'dependencyLabel' },
+            { tagName: 'rect', selector: 'dependencyProgressBg' },
+            { tagName: 'rect', selector: 'dependencyProgressBar' }
+        ]
+    });
+
+    function applyTreeLayout() {
+        const dagreGraph = new dagre.graphlib.Graph();
+        dagreGraph.setGraph({ rankdir: 'TB', align: 'UL', nodesep: 50, ranksep: 100 });
+        dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+        graph.getElements().forEach(element => {
+            dagreGraph.setNode(element.id, {
+                width: element.get('size').width,
+                height: element.get('size').height
+            });
         });
 
-        function applyTreeLayout() {
-            const dagreGraph = new dagre.graphlib.Graph();
-            dagreGraph.setGraph({ rankdir: 'TB', align: 'UL', nodesep: 50, ranksep: 100 });
-            dagreGraph.setDefaultEdgeLabel(() => ({}));
+        graph.getLinks().forEach(link => {
+            dagreGraph.setEdge(link.get('source').id, link.get('target').id);
+        });
 
-            graph.getElements().forEach(element => {
-                dagreGraph.setNode(element.id, {
-                    width: element.get('size').width,
-                    height: element.get('size').height
-                });
-            });
+        dagre.layout(dagreGraph);
 
-            graph.getLinks().forEach(link => {
-                dagreGraph.setEdge(link.get('source').id, link.get('target').id);
-            });
+        dagreGraph.nodes().forEach(id => {
+            const node = dagreGraph.node(id);
+            const element = graph.getCell(id);
+            if (element) {
+                const newPosition = {
+                    x: node.x - node.width / 2,
+                    y: node.y - node.height / 2
+                };
+                originalPositions.set(id, newPosition);
+                element.position(newPosition.x, newPosition.y);
+            }
+        });
+    }
 
-            dagre.layout(dagreGraph);
+    function resetLayout() {
+        originalPositions.forEach((position, id) => {
+            const element = graph.getCell(id);
+            if (element) element.position(position.x, position.y);
+        });
+        paper.scaleContentToFit({ padding: 50 });
+    }
 
-            dagreGraph.nodes().forEach(id => {
-                const node = dagreGraph.node(id);
-                const element = graph.getCell(id);
-                if (element) {
-                    const newPosition = {
-                        x: node.x - node.width / 2,
-                        y: node.y - node.height / 2
-                    };
-                    originalPositions.set(id, newPosition);
-                    element.position(newPosition.x, newPosition.y);
+    async function loadTasks() {
+        try {
+            const response = await axios.get('/api/tasks/');
+            const tasks = response.data;
+            const elements = tasks.map(task => {
+                const deadline = task.deadline ? new Date(task.deadline) : null;
+                const isOverdue = deadline && deadline < new Date() && task.status !== 'done';
+                let categoryText = 'Без категории';
+                if (task.category_names && task.category_names.length > 0) {
+                    const cats = task.category_names.slice(0, 3); // Берем до 3 категорий
+                    categoryText = `Категории: ${cats.join(', ')}`;
+                    if (task.category_names.length > 3) {
+                        categoryText += '...';
+                    }
                 }
-            });
-        }
-
-        function resetLayout() {
-            originalPositions.forEach((position, id) => {
-                const element = graph.getCell(id);
-                if (element) element.position(position.x, position.y);
-            });
-            paper.scaleContentToFit({ padding: 50 });
-        }
-
-        async function loadTasks() {
-            try {
-                const response = await axios.get('/api/tasks/');
-                const tasks = response.data;
-                const elements = tasks.map(task => {
-                    const deadline = task.deadline ? new Date(task.deadline) : null;
-                    const isOverdue = deadline && deadline < new Date() && task.status !== 'done';
-
-                    return new joint.shapes.app.Task({
-                        id: task.id.toString(),
-                        position: { x: 0, y: 0 },
-                        size: { width: 220, height: 120 },
-                        attrs: {
-                            body: {
-                                fill: userSettings.taskBackground,
-                                stroke: getBorderColor(task.status)
-                            },
-                            title: { text: task.title },
-                            overdueIndicator: {
-                                fill: isOverdue
-                                    ? (task.status === 'done' ? '#4CAF50' : 'red')
-                                    : 'transparent'
-                            },
-                            statusText: {
-                                text: `Статус: ${task.status.toUpperCase()}`,
-                                display: userSettings.showStatus ? 'block' : 'none'
-                            },
-                            progressLabel: {
-                                text: 'Прогресс:',
-                                display: userSettings.showProgressBar ? 'block' : 'none'
-                            },
-                            progressBackground: {
-                                display: userSettings.showProgressBar ? 'block' : 'none'
-                            },
-                            progressBar: {
-                                width: task.progress * 0.8,
-                                display: userSettings.showProgressBar ? 'block' : 'none'
-                            },
-                            dependencyLabel: {
-                                text: 'Зависимости:',
-                                display: userSettings.showDependencyProgress ? 'block' : 'none'
-                            },
-                            dependencyText: {
-                                text: `${Math.round(task.completed_dependencies_percentage)}% выполнено`,
-                                display: userSettings.showDependencyProgress ? 'block' : 'none'
-                            }
+                return new joint.shapes.app.Task({
+                    id: task.id.toString(),
+                    position: { x: 0, y: 0 },
+                    size: { width: 220, height: 150 },
+                    attrs: {
+                        body: {
+                            fill: userSettings.taskBackground,
+                            stroke: getBorderColor(task.status)
+                        },
+                        title: { text: task.title },
+                        overdueIndicator: {
+                            fill: isOverdue
+                                ? (task.status === 'done' ? '#4CAF50' : 'red')
+                                : 'transparent'
+                        },
+                        statusText: {
+                            text: `Статус: ${task.status.toUpperCase()}`,
+                            display: userSettings.showStatus ? 'block' : 'none'
+                        },
+                        // Выводим категорию вместо тегов
+                        categoryText: {
+                            text: categoryText,
+                            display: 'block'
+                        },
+                        dependencyLabel: {
+                            text: 'Зависимости:',
+                            display: userSettings.showDependencyProgress ? 'block' : 'none'
+                        },
+                        dependencyProgressBg: {
+                            display: userSettings.showDependencyProgress ? 'block' : 'none'
+                        },
+                        dependencyProgressBar: {
+                            width: task.completed_dependencies_percentage * 0.8,
+                            display: userSettings.showDependencyProgress ? 'block' : 'none'
                         }
-                    });
+                    }
                 });
-
-                const links = tasks.flatMap(task =>
-                    task.dependencies.map(depId =>
-                        new joint.shapes.standard.Link({
-                            source: { id: depId.toString() },
-                            target: { id: task.id.toString() },
-                            attrs: { line: { stroke: '#9E9E9E', strokeWidth: 1.5 } },
-                            connector: { name: 'smooth' },
-                            z: -1
-                        })
-                    )
-                );
-
-                graph.resetCells([...elements, ...links]);
-                applyTreeLayout();
-
-                setTimeout(() => {
-                    paper.scaleContentToFit({ padding: 50 });
-                    diagramDiv.focus();
-                }, 100);
-
-            } catch (error) {
-                console.error('Ошибка загрузки данных:', error);
-            }
-        }
-
-        paper.on('element:pointerdblclick', elementView => {
-            window.location.href = `/tasks/${elementView.model.id}/form/`;
-        });
-
-        document.getElementById('zoomIn').addEventListener('click', () => {
-            paper.scale(paper.scale().sx * 1.2, paper.scale().sy * 1.2);
-        });
-
-        document.getElementById('zoomOut').addEventListener('click', () => {
-            paper.scale(paper.scale().sx / 1.2, paper.scale().sy / 1.2);
-        });
-
-        document.getElementById('fit').addEventListener('click', () => {
-            paper.scaleContentToFit({ padding: 50 });
-        });
-
-        document.getElementById('resetLayout').addEventListener('click', resetLayout);
-
-        diagramDiv.addEventListener('wheel', function(e) {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -1 : 1;
-            const scaleFactor = 1.1;
-            const currentScale = paper.scale().sx;
-            let newScale = delta > 0 ? currentScale * scaleFactor : currentScale / scaleFactor;
-            newScale = Math.max(0.1, Math.min(3, newScale));
-
-            const rect = diagramDiv.getBoundingClientRect();
-            const paperPoint = paper.clientToLocalPoint({
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
             });
 
-            const currentTranslate = paper.translate();
-            paper.scale(newScale, newScale);
-            paper.translate(
-                currentTranslate.tx - (paperPoint.x * (newScale - currentScale)),
-                currentTranslate.ty - (paperPoint.y * (newScale - currentScale))
+            const links = tasks.flatMap(task =>
+                task.dependencies.map(depId =>
+                    new joint.shapes.standard.Link({
+                        source: { id: depId.toString() },
+                        target: { id: task.id.toString() },
+                        attrs: { line: { stroke: '#9E9E9E', strokeWidth: 1.5 } },
+                        connector: { name: 'smooth' },
+                        z: -1
+                    })
+                )
             );
-        }, { passive: false });
 
-        let isPanning = false;
-        let lastClientX, lastClientY;
+            graph.resetCells([...elements, ...links]);
+            applyTreeLayout();
 
-        diagramDiv.addEventListener('mousedown', (e) => {
-            if (e.button === 1) {
-                isPanning = true;
-                lastClientX = e.clientX;
-                lastClientY = e.clientY;
-                diagramDiv.style.cursor = 'grabbing';
-                e.preventDefault();
-            }
+            setTimeout(() => {
+                paper.scaleContentToFit({ padding: 50 });
+                diagramDiv.focus();
+            }, 100);
+
+        } catch (error) {
+            console.error('Ошибка загрузки данных:', error);
+        }
+    }
+
+    paper.on('element:pointerdblclick', elementView => {
+        window.location.href = `/tasks/${elementView.model.id}/form/`;
+    });
+
+    document.getElementById('zoomIn').addEventListener('click', () => {
+        paper.scale(paper.scale().sx * 1.2, paper.scale().sy * 1.2);
+    });
+
+    document.getElementById('zoomOut').addEventListener('click', () => {
+        paper.scale(paper.scale().sx / 1.2, paper.scale().sy / 1.2);
+    });
+
+    document.getElementById('fit').addEventListener('click', () => {
+        paper.scaleContentToFit({ padding: 50 });
+    });
+
+    document.getElementById('resetLayout').addEventListener('click', resetLayout);
+
+    diagramDiv.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -1 : 1;
+        const scaleFactor = 1.1;
+        const currentScale = paper.scale().sx;
+        let newScale = delta > 0 ? currentScale * scaleFactor : currentScale / scaleFactor;
+        newScale = Math.max(0.1, Math.min(3, newScale));
+
+        const rect = diagramDiv.getBoundingClientRect();
+        const paperPoint = paper.clientToLocalPoint({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
         });
 
-        document.addEventListener('mousemove', (e) => {
-            if (isPanning) {
-                const dx = e.clientX - lastClientX;
-                const dy = e.clientY - lastClientY;
-                paper.translate(paper.translate().tx + dx, paper.translate().ty + dy);
-                lastClientX = e.clientX;
-                lastClientY = e.clientY;
-            }
-        });
+        const currentTranslate = paper.translate();
+        paper.scale(newScale, newScale);
+        paper.translate(
+            currentTranslate.tx - (paperPoint.x * (newScale - currentScale)),
+            currentTranslate.ty - (paperPoint.y * (newScale - currentScale))
+        );
+    }, { passive: false });
 
-        document.addEventListener('mouseup', (e) => {
-            if (e.button === 1) {
-                isPanning = false;
-                diagramDiv.style.cursor = 'default';
-            }
-        });
+    let isPanning = false;
+    let lastClientX, lastClientY;
 
-        diagramDiv.addEventListener('keydown', (e) => {
-            if (e.target !== diagramDiv) return;
-            const PAN_STEP = 30;
-            const translate = paper.translate();
-
-            switch (e.key) {
-                case 'ArrowUp': paper.translate(translate.tx, translate.ty + PAN_STEP); break;
-                case 'ArrowDown': paper.translate(translate.tx, translate.ty - PAN_STEP); break;
-                case 'ArrowLeft': paper.translate(translate.tx + PAN_STEP, translate.ty); break;
-                case 'ArrowRight': paper.translate(translate.tx - PAN_STEP, translate.ty); break;
-                default: return;
-            }
+    diagramDiv.addEventListener('mousedown', (e) => {
+        if (e.button === 1) {
+            isPanning = true;
+            lastClientX = e.clientX;
+            lastClientY = e.clientY;
+            diagramDiv.style.cursor = 'grabbing';
             e.preventDefault();
-        });
+        }
+    });
 
-        loadTasks();
+    document.addEventListener('mousemove', (e) => {
+        if (isPanning) {
+            const dx = e.clientX - lastClientX;
+            const dy = e.clientY - lastClientY;
+            paper.translate(paper.translate().tx + dx, paper.translate().ty + dy);
+            lastClientX = e.clientX;
+            lastClientY = e.clientY;
+        }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+        if (e.button === 1) {
+            isPanning = false;
+            diagramDiv.style.cursor = 'default';
+        }
+    });
+
+    diagramDiv.addEventListener('keydown', (e) => {
+        if (e.target !== diagramDiv) return;
+        const PAN_STEP = 30;
+        const translate = paper.translate();
+
+        switch (e.key) {
+            case 'ArrowUp': paper.translate(translate.tx, translate.ty + PAN_STEP); break;
+            case 'ArrowDown': paper.translate(translate.tx, translate.ty - PAN_STEP); break;
+            case 'ArrowLeft': paper.translate(translate.tx + PAN_STEP, translate.ty); break;
+            case 'ArrowRight': paper.translate(translate.tx - PAN_STEP, translate.ty); break;
+            default: return;
+        }
+        e.preventDefault();
+    });
+
+    loadTasks();
     });
 </script>
 {% endblock content %}
