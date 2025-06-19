@@ -21,10 +21,12 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class TaskCategorySerializer(serializers.ModelSerializer):
+    task_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = TaskCategory
-        fields = "__all__"
-        read_only_fields = ["id"]
+        fields = ["id", "name", "description", "task_count"]
+        read_only_fields = ["id", "task_count"]
 
 
 class NotificationMethodSerializer(serializers.ModelSerializer):

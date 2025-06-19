@@ -156,6 +156,18 @@
         "decorators": ""
     },
     {
+        "url": "/api/tasks/categories/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-categories",
+        "decorators": ""
+    },
+    {
+        "url": "/api/tasks/categories\\.<format>/",
+        "module": "tasks.views.TaskViewSet",
+        "name": "task-categories",
+        "decorators": ""
+    },
+    {
         "url": "/api/tasks/overdue/",
         "module": "tasks.views.TaskViewSet",
         "name": "task-overdue",
@@ -288,7 +300,7 @@
         "decorators": ""
     },
     {
-        "url": "/admin/r/<path:content_type_id>/<path:object_id>/",
+        "url": "/admin/r/<int:content_type_id>/<path:object_id>/",
         "module": "django.contrib.contenttypes.views.shortcut",
         "name": "admin:view_on_site",
         "decorators": ""

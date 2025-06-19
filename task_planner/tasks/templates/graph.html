@@ -1,4 +1,21 @@
 {% block content %}
+<div class="card mb-3">
+    <div class="card-header">
+        <h4>Фильтр по категориям</h4>
+    </div>
+    <div class="card-body">
+        <div id="categoryFilter" class="d-flex flex-wrap gap-2">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+        </div>
+        <div class="mt-3">
+            <button id="selectAllCategories" class="btn btn-sm btn-outline-primary me-2">Выбрать все</button>
+            <button id="deselectAllCategories" class="btn btn-sm btn-outline-secondary">Сбросить</button>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header">
         <h3>Граф задач</h3>
@@ -10,8 +27,7 @@
         </div>
     </div>
     <div class="card-body">
-        <div id="diagramDiv" style="width: 100%; height: 1100px; background-color: #fafafa; border: 1px solid #ddd">
-        </div>
+        <div id="diagramDiv" style="width: 100%; height: 1100px; background-color: #fafafa; border: 1px solid #ddd"></div>
     </div>
 </div>
 
@@ -25,6 +41,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Конфигурация по умолчанию
         const defaultSettings = {
             taskBackground: "#FFFFFF",
             borderColors: {
@@ -38,284 +55,483 @@
             showStatus: true
         };
 
-        const userSettings = {% if request.user.is_authenticated and request.user.user_settings %}{{ request.user.user_settings | safe }}{% else %}defaultSettings{% endif %};
+        // Состояние приложения
+        const appState = {
+            graph: new joint.dia.Graph(),
+            paper: null,
+            selectedCategories: [],
+            categoryCache: {},
+            taskElements: {},
+            originalPositions: new Map()
+        };
 
-    const graph = new joint.dia.Graph();
-    const paper = new joint.dia.Paper({
-        el: document.getElementById('diagramDiv'),
-        model: graph,
-        width: '100%',
-        height: 1100,
-        gridSize: 10,
-        background: { color: '#fafafa' },
-        interactive: { elementMove: true },
-        panning: { enabled: true, modifiers: ['shift'] },
-        mousewheel: { enabled: false }
-    });
-
-    const diagramDiv = document.getElementById('diagramDiv');
-    diagramDiv.setAttribute('tabindex', '0');
-    diagramDiv.style.outline = 'none';
-
-    const originalPositions = new Map();
-
-    function getBorderColor(status) {
-        return userSettings.borderColors[status] || "#1F4963";
-    }
-
-    joint.shapes.app = {};
-    joint.shapes.app.Task = joint.dia.Element.define('app.Task', {
-        size: { width: 220, height: 150 },
-        movable: true,
-        attrs: {
-            root: { magnet: false },
-            body: {
-                width: 'calc(w)', height: 'calc(h)',
-                fill: '#FFFFFF', stroke: '#1F4963',
-                strokeWidth: 2, rx: 3, ry: 3, cursor: 'move'
-            },
-            title: {
-                refX: 10, refY: 10,
-                fontFamily: 'Segoe UI', fontWeight: 'bold', fontSize: 14, fill: '#1F4963',
-                textWrap: { width: 180, height: 40, ellipsis: true }
-            },
-            overdueIndicator: { r: 5, refX: 210, refY: 15 },
-            statusText: { refX: 10, refY: 60, fontFamily: 'Segoe UI', fontStyle: 'italic', fontSize: 11, fill: '#666' },
-            categoryText: {
-                refX: 10, refY: 80,
-                fontFamily: 'Segoe UI', fontSize: 11, fill: '#666',
-                textWrap: { width: 200, height: 15, ellipsis: true }
-            },
-            dependencyLabel: { refX: 10, refY: 110, fontFamily: 'Segoe UI', fontSize: 11, fill: '#666' },
-            dependencyProgressBg: {
-                refX: 85, refY: 110,
-                width: 80, height: 8,
-                fill: '#EEE'
-            },
-            dependencyProgressBar: {
-                refX: 85, refY: 110,
-                height: 8,
-                fill: '#4CAF50'
-            }
-        }
-    }, {
-        markup: [
-            { tagName: 'rect', selector: 'body' },
-            { tagName: 'text', selector: 'title' },
-            { tagName: 'circle', selector: 'overdueIndicator' },
-            { tagName: 'text', selector: 'statusText' },
-            { tagName: 'text', selector: 'categoryText' },
-            { tagName: 'text', selector: 'dependencyLabel' },
-            { tagName: 'rect', selector: 'dependencyProgressBg' },
-            { tagName: 'rect', selector: 'dependencyProgressBar' }
-        ]
-    });
-
-    function applyTreeLayout() {
-        const dagreGraph = new dagre.graphlib.Graph();
-        dagreGraph.setGraph({ rankdir: 'TB', align: 'UL', nodesep: 50, ranksep: 100 });
-        dagreGraph.setDefaultEdgeLabel(() => ({}));
-
-        graph.getElements().forEach(element => {
-            dagreGraph.setNode(element.id, {
-                width: element.get('size').width,
-                height: element.get('size').height
+        // Инициализация бумаги для рисования
+        function initPaper() {
+            appState.paper = new joint.dia.Paper({
+                el: document.getElementById('diagramDiv'),
+                model: appState.graph,
+                width: '100%',
+                height: 1100,
+                gridSize: 10,
+                background: { color: '#fafafa' },
+                interactive: { elementMove: true },
+                panning: { enabled: true, modifiers: ['shift'] },
+                mousewheel: { enabled: false }
             });
-        });
 
-        graph.getLinks().forEach(link => {
-            dagreGraph.setEdge(link.get('source').id, link.get('target').id);
-        });
+            const diagramDiv = document.getElementById('diagramDiv');
+            diagramDiv.setAttribute('tabindex', '0');
+            diagramDiv.style.outline = 'none';
+        }
 
-        dagre.layout(dagreGraph);
-
-        dagreGraph.nodes().forEach(id => {
-            const node = dagreGraph.node(id);
-            const element = graph.getCell(id);
-            if (element) {
-                const newPosition = {
-                    x: node.x - node.width / 2,
-                    y: node.y - node.height / 2
-                };
-                originalPositions.set(id, newPosition);
-                element.position(newPosition.x, newPosition.y);
-            }
-        });
-    }
-
-    function resetLayout() {
-        originalPositions.forEach((position, id) => {
-            const element = graph.getCell(id);
-            if (element) element.position(position.x, position.y);
-        });
-        paper.scaleContentToFit({ padding: 50 });
-    }
-
-    async function loadTasks() {
-        try {
-            const response = await axios.get('/api/tasks/');
-            const tasks = response.data;
-            const elements = tasks.map(task => {
-                const deadline = task.deadline ? new Date(task.deadline) : null;
-                const isOverdue = deadline && deadline < new Date() && task.status !== 'done';
-                let categoryText = 'Без категории';
-                if (task.category_names && task.category_names.length > 0) {
-                    const cats = task.category_names.slice(0, 3); // Берем до 3 категорий
-                    categoryText = `Категории: ${cats.join(', ')}`;
-                    if (task.category_names.length > 3) {
-                        categoryText += '...';
+        // Определение формы задачи
+        function defineTaskShape() {
+            joint.shapes.app = {};
+            joint.shapes.app.Task = joint.dia.Element.define('app.Task', {
+                size: { width: 220, height: 150 },
+                movable: true,
+                attrs: {
+                    root: { magnet: false },
+                    body: {
+                        width: 'calc(w)', height: 'calc(h)',
+                        fill: '#FFFFFF', stroke: '#1F4963',
+                        strokeWidth: 2, rx: 3, ry: 3, cursor: 'move'
+                    },
+                    title: {
+                        refX: 10, refY: 10,
+                        fontFamily: 'Segoe UI', fontWeight: 'bold', fontSize: 14, fill: '#1F4963',
+                        textWrap: { width: 180, height: 40, ellipsis: true }
+                    },
+                    overdueIndicator: { r: 5, refX: 210, refY: 15 },
+                    statusText: { refX: 10, refY: 60, fontFamily: 'Segoe UI', fontStyle: 'italic', fontSize: 11, fill: '#666' },
+                    categoryText: {
+                        refX: 10, refY: 80,
+                        fontFamily: 'Segoe UI', fontSize: 11, fill: '#666',
+                        textWrap: { width: 200, height: 15, ellipsis: true }
+                    },
+                    dependencyLabel: { refX: 10, refY: 110, fontFamily: 'Segoe UI', fontSize: 11, fill: '#666' },
+                    dependencyProgressBg: {
+                        refX: 85, refY: 110,
+                        width: 80, height: 8,
+                        fill: '#EEE'
+                    },
+                    dependencyProgressBar: {
+                        refX: 85, refY: 110,
+                        height: 8,
+                        fill: '#4CAF50'
                     }
                 }
-                return new joint.shapes.app.Task({
-                    id: task.id.toString(),
-                    position: { x: 0, y: 0 },
-                    size: { width: 220, height: 150 },
-                    attrs: {
-                        body: {
-                            fill: userSettings.taskBackground,
-                            stroke: getBorderColor(task.status)
-                        },
-                        title: { text: task.title },
-                        overdueIndicator: {
-                            fill: isOverdue
-                                ? (task.status === 'done' ? '#4CAF50' : 'red')
-                                : 'transparent'
-                        },
-                        statusText: {
-                            text: `Статус: ${task.status.toUpperCase()}`,
-                            display: userSettings.showStatus ? 'block' : 'none'
-                        },
-                        // Выводим категорию вместо тегов
-                        categoryText: {
-                            text: categoryText,
-                            display: 'block'
-                        },
-                        dependencyLabel: {
-                            text: 'Зависимости:',
-                            display: userSettings.showDependencyProgress ? 'block' : 'none'
-                        },
-                        dependencyProgressBg: {
-                            display: userSettings.showDependencyProgress ? 'block' : 'none'
-                        },
-                        dependencyProgressBar: {
-                            width: task.completed_dependencies_percentage * 0.8,
-                            display: userSettings.showDependencyProgress ? 'block' : 'none'
+            }, {
+                markup: [
+                    { tagName: 'rect', selector: 'body' },
+                    { tagName: 'text', selector: 'title' },
+                    { tagName: 'circle', selector: 'overdueIndicator' },
+                    { tagName: 'text', selector: 'statusText' },
+                    { tagName: 'text', selector: 'categoryText' },
+                    { tagName: 'text', selector: 'dependencyLabel' },
+                    { tagName: 'rect', selector: 'dependencyProgressBg' },
+                    { tagName: 'rect', selector: 'dependencyProgressBar' }
+                ]
+            });
+        }
+
+        // Загрузка категорий
+        async function loadCategories() {
+            try {
+                const response = await axios.get('/api/tasks/categories/');
+                const container = document.getElementById('categoryFilter');
+                container.innerHTML = '';
+
+                response.data.forEach(category => {
+                    appState.categoryCache[category.id] = category.name;
+
+                    const badge = document.createElement('div');
+                    badge.className = 'form-check form-check-inline';
+                    badge.innerHTML = `
+                        <input class="form-check-input" type="checkbox"
+                               id="cat-${category.id}" value="${category.id}"
+                               ${appState.selectedCategories.includes(category.id) ? 'checked' : ''}>
+                        <label class="form-check-label badge bg-light text-dark border"
+                               for="cat-${category.id}" style="cursor: pointer">
+                            ${category.name} (${category.task_count})
+                        </label>
+                    `;
+                    container.appendChild(badge);
+
+                    document.getElementById(`cat-${category.id}`).addEventListener('change', function() {
+                        if (this.checked) {
+                            if (!appState.selectedCategories.includes(category.id)) {
+                                appState.selectedCategories.push(category.id);
+                            }
+                        } else {
+                            appState.selectedCategories = appState.selectedCategories.filter(id => id !== category.id);
                         }
+                        saveCategorySelection();
+                        loadTasks();
+                    });
+                });
+
+                // Опция "Без категории"
+                const noCategory = document.createElement('div');
+                noCategory.className = 'form-check form-check-inline';
+                noCategory.innerHTML = `
+                    <input class="form-check-input" type="checkbox"
+                           id="cat-none" value="none"
+                           ${appState.selectedCategories.includes('none') ? 'checked' : ''}>
+                    <label class="form-check-label badge bg-light text-dark border"
+                           for="cat-none" style="cursor: pointer">
+                        Без категории
+                    </label>
+                `;
+                container.appendChild(noCategory);
+
+                document.getElementById('cat-none').addEventListener('change', function() {
+                    if (this.checked) {
+                        if (!appState.selectedCategories.includes('none')) {
+                            appState.selectedCategories.push('none');
+                        }
+                    } else {
+                        appState.selectedCategories = appState.selectedCategories.filter(id => id !== 'none');
                     }
+                    saveCategorySelection();
+                    loadTasks();
+                });
+
+            } catch (error) {
+                console.error('Ошибка загрузки категорий:', error);
+            }
+        }
+
+        // Сохранение выбора категорий
+        function saveCategorySelection() {
+            localStorage.setItem('selectedCategories', JSON.stringify(appState.selectedCategories));
+        }
+
+        // Загрузка выбора категорий
+        function loadCategorySelection() {
+            const saved = localStorage.getItem('selectedCategories');
+            if (saved) {
+                appState.selectedCategories = JSON.parse(saved);
+            } else {
+                // По умолчанию выбираем все категории
+                appState.selectedCategories = Object.keys(appState.categoryCache).concat(['none']);
+            }
+        }
+
+        // Обработчики кнопок
+        document.getElementById('selectAllCategories').addEventListener('click', function() {
+            appState.selectedCategories = Object.keys(appState.categoryCache).concat(['none']);
+            saveCategorySelection();
+            loadCategories();
+            loadTasks();
+        });
+
+        document.getElementById('deselectAllCategories').addEventListener('click', function() {
+            appState.selectedCategories = [];
+            saveCategorySelection();
+            loadCategories();
+            loadTasks();
+        });
+
+        // Применение макета
+        function applyTreeLayout() {
+            const dagreGraph = new dagre.graphlib.Graph();
+            dagreGraph.setGraph({
+                rankdir: 'TB',
+                align: 'UL',
+                nodesep: 50,
+                ranksep: 100
+            });
+            dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+            appState.graph.getElements().forEach(element => {
+                dagreGraph.setNode(element.id, {
+                    width: element.get('size').width,
+                    height: element.get('size').height
                 });
             });
 
-            const links = tasks.flatMap(task =>
-                task.dependencies.map(depId =>
-                    new joint.shapes.standard.Link({
-                        source: { id: depId.toString() },
-                        target: { id: task.id.toString() },
-                        attrs: { line: { stroke: '#9E9E9E', strokeWidth: 1.5 } },
-                        connector: { name: 'smooth' },
-                        z: -1
-                    })
-                )
-            );
+            appState.graph.getLinks().forEach(link => {
+                dagreGraph.setEdge(
+                    link.get('source').id,
+                    link.get('target').id
+                );
+            });
 
-            graph.resetCells([...elements, ...links]);
-            applyTreeLayout();
+            dagre.layout(dagreGraph);
 
-            setTimeout(() => {
-                paper.scaleContentToFit({ padding: 50 });
-                diagramDiv.focus();
-            }, 100);
-
-        } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
+            dagreGraph.nodes().forEach(id => {
+                const node = dagreGraph.node(id);
+                const element = appState.graph.getCell(id);
+                if (element) {
+                    const newPosition = {
+                        x: node.x - node.width / 2,
+                        y: node.y - node.height / 2
+                    };
+                    appState.originalPositions.set(id, newPosition);
+                    element.position(newPosition.x, newPosition.y);
+                }
+            });
         }
-    }
 
-    paper.on('element:pointerdblclick', elementView => {
-        window.location.href = `/tasks/${elementView.model.id}/form/`;
-    });
-
-    document.getElementById('zoomIn').addEventListener('click', () => {
-        paper.scale(paper.scale().sx * 1.2, paper.scale().sy * 1.2);
-    });
-
-    document.getElementById('zoomOut').addEventListener('click', () => {
-        paper.scale(paper.scale().sx / 1.2, paper.scale().sy / 1.2);
-    });
-
-    document.getElementById('fit').addEventListener('click', () => {
-        paper.scaleContentToFit({ padding: 50 });
-    });
-
-    document.getElementById('resetLayout').addEventListener('click', resetLayout);
-
-    diagramDiv.addEventListener('wheel', function (e) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -1 : 1;
-        const scaleFactor = 1.1;
-        const currentScale = paper.scale().sx;
-        let newScale = delta > 0 ? currentScale * scaleFactor : currentScale / scaleFactor;
-        newScale = Math.max(0.1, Math.min(3, newScale));
-
-        const rect = diagramDiv.getBoundingClientRect();
-        const paperPoint = paper.clientToLocalPoint({
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        });
-
-        const currentTranslate = paper.translate();
-        paper.scale(newScale, newScale);
-        paper.translate(
-            currentTranslate.tx - (paperPoint.x * (newScale - currentScale)),
-            currentTranslate.ty - (paperPoint.y * (newScale - currentScale))
-        );
-    }, { passive: false });
-
-    let isPanning = false;
-    let lastClientX, lastClientY;
-
-    diagramDiv.addEventListener('mousedown', (e) => {
-        if (e.button === 1) {
-            isPanning = true;
-            lastClientX = e.clientX;
-            lastClientY = e.clientY;
-            diagramDiv.style.cursor = 'grabbing';
-            e.preventDefault();
+        // Сброс макета
+        function resetLayout() {
+            appState.originalPositions.forEach((position, id) => {
+                const element = appState.graph.getCell(id);
+                if (element) element.position(position.x, position.y);
+            });
+            appState.paper.scaleContentToFit({ padding: 50 });
         }
-    });
 
-    document.addEventListener('mousemove', (e) => {
-        if (isPanning) {
-            const dx = e.clientX - lastClientX;
-            const dy = e.clientY - lastClientY;
-            paper.translate(paper.translate().tx + dx, paper.translate().ty + dy);
-            lastClientX = e.clientX;
-            lastClientY = e.clientY;
+        // Загрузка задач
+        async function loadTasks() {
+            try {
+                // Параметры запроса
+                const params = {};
+                if (appState.selectedCategories.length > 0) {
+                    params.categories = appState.selectedCategories
+                        .filter(cat => cat !== 'none')
+                        .join(',');
+
+                    if (appState.selectedCategories.includes('none')) {
+                        params.include_no_category = true;
+                    }
+                }
+
+                const response = await axios.get('/api/tasks/', { params });
+                const tasks = response.data;
+
+                // Очищаем предыдущие элементы
+                appState.graph.clear();
+                appState.taskElements = {};
+                appState.originalPositions.clear();
+
+                // Создаем задачи
+                tasks.forEach(task => {
+                    const deadline = task.deadline ? new Date(task.deadline) : null;
+                    const isOverdue = deadline && deadline < new Date() && task.status !== 'done';
+
+                    // Форматируем категории
+                    let categoryText = 'Без категории';
+                    if (task.category_names && task.category_names.length > 0) {
+                        categoryText = `Категории: ${task.category_names.slice(0, 3).join(', ')}`;
+                        if (task.category_names.length > 3) {
+                            categoryText += '...';
+                        }
+                    }
+
+                    const taskElement = new joint.shapes.app.Task({
+                        id: task.id.toString(),
+                        position: { x: 0, y: 0 },
+                        size: { width: 220, height: 150 },
+                        attrs: {
+                            body: {
+                                fill: defaultSettings.taskBackground,
+                                stroke: getBorderColor(task.status)
+                            },
+                            title: { text: task.title },
+                            overdueIndicator: {
+                                fill: isOverdue && task.status !== 'done' ? 'red' : 'transparent'
+                            },
+                            statusText: {
+                                text: `Статус: ${getStatusDisplay(task.status)}`,
+                                display: defaultSettings.showStatus ? 'block' : 'none'
+                            },
+                            categoryText: {
+                                text: categoryText,
+                                display: 'block'
+                            },
+                            dependencyLabel: {
+                                text: 'Зависимости:',
+                                display: defaultSettings.showDependencyProgress ? 'block' : 'none'
+                            },
+                            dependencyProgressBg: {
+                                display: defaultSettings.showDependencyProgress ? 'block' : 'none'
+                            },
+                            dependencyProgressBar: {
+                                width: task.completed_dependencies_percentage * 0.8,
+                                display: defaultSettings.showDependencyProgress ? 'block' : 'none'
+                            }
+                        }
+                    });
+
+                    appState.graph.addCell(taskElement);
+                    appState.taskElements[task.id] = taskElement;
+                });
+
+                // Создаем связи
+                tasks.forEach(task => {
+                    task.dependencies.forEach(depId => {
+                        if (appState.taskElements[depId] && appState.taskElements[task.id]) {
+                            const link = new joint.shapes.standard.Link({
+                                source: { id: depId.toString() },
+                                target: { id: task.id.toString() },
+                                attrs: {
+                                    line: {
+                                        stroke: '#9E9E9E',
+                                        strokeWidth: 1.5,
+                                        targetMarker: {
+                                            type: 'path',
+                                            d: 'M 10 -5 0 0 10 5 z'
+                                        }
+                                    }
+                                },
+                                connector: { name: 'smooth' },
+                                z: -1
+                            });
+                            appState.graph.addCell(link);
+                        }
+                    });
+                });
+
+                // Применяем макет
+                applyTreeLayout();
+
+                // Масштабируем
+                setTimeout(() => {
+                    appState.paper.scaleContentToFit({ padding: 50 });
+                    diagramDiv.focus();
+                }, 100);
+
+            } catch (error) {
+                console.error('Ошибка загрузки задач:', error);
+            }
         }
-    });
 
-    document.addEventListener('mouseup', (e) => {
-        if (e.button === 1) {
-            isPanning = false;
-            diagramDiv.style.cursor = 'default';
+        // Получение отображаемого статуса
+        function getStatusDisplay(status) {
+            const statusMap = {
+                'waiting': 'Ожидает',
+                'progress': 'В процессе',
+                'done': 'Завершена',
+                'canceled': 'Отменена'
+            };
+            return statusMap[status] || status.toUpperCase();
         }
-    });
 
-    diagramDiv.addEventListener('keydown', (e) => {
-        if (e.target !== diagramDiv) return;
-        const PAN_STEP = 30;
-        const translate = paper.translate();
-
-        switch (e.key) {
-            case 'ArrowUp': paper.translate(translate.tx, translate.ty + PAN_STEP); break;
-            case 'ArrowDown': paper.translate(translate.tx, translate.ty - PAN_STEP); break;
-            case 'ArrowLeft': paper.translate(translate.tx + PAN_STEP, translate.ty); break;
-            case 'ArrowRight': paper.translate(translate.tx - PAN_STEP, translate.ty); break;
-            default: return;
+        // Получение цвета границы по статусу
+        function getBorderColor(status) {
+            return defaultSettings.borderColors[status] || "#1F4963";
         }
-        e.preventDefault();
-    });
 
-    loadTasks();
+        // Инициализация обработчиков событий
+        function initEventHandlers() {
+            // Двойной клик по задаче
+            appState.paper.on('element:pointerdblclick', elementView => {
+                window.location.href = `/tasks/${elementView.model.id}/form/`;
+            });
+
+            // Кнопки управления
+            document.getElementById('zoomIn').addEventListener('click', () => {
+                appState.paper.scale(appState.paper.scale().sx * 1.2, appState.paper.scale().sy * 1.2);
+            });
+
+            document.getElementById('zoomOut').addEventListener('click', () => {
+                appState.paper.scale(appState.paper.scale().sx / 1.2, appState.paper.scale().sy / 1.2);
+            });
+
+            document.getElementById('fit').addEventListener('click', () => {
+                appState.paper.scaleContentToFit({ padding: 50 });
+            });
+
+            document.getElementById('resetLayout').addEventListener('click', resetLayout);
+
+            // Масштабирование колесом мыши
+            const diagramDiv = document.getElementById('diagramDiv');
+            diagramDiv.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -1 : 1;
+                const scaleFactor = 1.1;
+                const currentScale = appState.paper.scale().sx;
+                let newScale = delta > 0 ? currentScale * scaleFactor : currentScale / scaleFactor;
+                newScale = Math.max(0.1, Math.min(3, newScale));
+
+                const rect = diagramDiv.getBoundingClientRect();
+                const paperPoint = appState.paper.clientToLocalPoint({
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                });
+
+                const currentTranslate = appState.paper.translate();
+                appState.paper.scale(newScale, newScale);
+                appState.paper.translate(
+                    currentTranslate.tx - (paperPoint.x * (newScale - currentScale)),
+                    currentTranslate.ty - (paperPoint.y * (newScale - currentScale))
+                );
+            }, { passive: false });
+
+            // Панорамирование
+            let isPanning = false;
+            let lastClientX, lastClientY;
+
+            diagramDiv.addEventListener('mousedown', (e) => {
+                if (e.button === 1) {  // Средняя кнопка мыши
+                    isPanning = true;
+                    lastClientX = e.clientX;
+                    lastClientY = e.clientY;
+                    diagramDiv.style.cursor = 'grabbing';
+                    e.preventDefault();
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (isPanning) {
+                    const dx = e.clientX - lastClientX;
+                    const dy = e.clientY - lastClientY;
+                    appState.paper.translate(
+                        appState.paper.translate().tx + dx,
+                        appState.paper.translate().ty + dy
+                    );
+                    lastClientX = e.clientX;
+                    lastClientY = e.clientY;
+                }
+            });
+
+            document.addEventListener('mouseup', (e) => {
+                if (e.button === 1) {
+                    isPanning = false;
+                    diagramDiv.style.cursor = 'default';
+                }
+            });
+
+            // Навигация стрелками
+            diagramDiv.addEventListener('keydown', (e) => {
+                if (e.target !== diagramDiv) return;
+                const PAN_STEP = 30;
+                const translate = appState.paper.translate();
+
+                switch (e.key) {
+                    case 'ArrowUp':
+                        appState.paper.translate(translate.tx, translate.ty + PAN_STEP);
+                        break;
+                    case 'ArrowDown':
+                        appState.paper.translate(translate.tx, translate.ty - PAN_STEP);
+                        break;
+                    case 'ArrowLeft':
+                        appState.paper.translate(translate.tx + PAN_STEP, translate.ty);
+                        break;
+                    case 'ArrowRight':
+                        appState.paper.translate(translate.tx - PAN_STEP, translate.ty);
+                        break;
+                    default:
+                        return;
+                }
+                e.preventDefault();
+            });
+        }
+
+        // Инициализация приложения
+        function init() {
+            initPaper();
+            defineTaskShape();
+            loadCategorySelection();
+            loadCategories();
+            loadTasks();
+            initEventHandlers();
+        }
+
+        // Запуск приложения
+        init();
     });
 </script>
 {% endblock content %}

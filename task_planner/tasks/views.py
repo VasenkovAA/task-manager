@@ -121,23 +121,46 @@ class TaskViewSet(BaseViewSet):
         'is_ready', 'is_recurring', 'is_template',
         'assignee', 'author'
     ]
-
+    @action(detail=False, methods=['get'])
+    def categories(self, request):
+        """Получение списка категорий с количеством задач"""
+        queryset = TaskCategory.objects.annotate(
+            task_count=Count('tasks', filter=Q(tasks__is_deleted=False)))
+        serializer = TaskCategorySerializer(queryset, many=True)
+        return Response(serializer.data)
     def get_queryset(self):
         """
         Возвращает запрос для задач с аннотацией зависимостей.
         Исключает удаленные задачи и оптимизирует запросы.
         """
-        # Используем базовый queryset вместо super().get_queryset()
         queryset = self.queryset
+
+        # Фильтрация по категориям из запроса
+        category_ids = self.request.query_params.get('categories')
+        include_no_category = self.request.query_params.get('include_no_category') == 'true'
+
+        if category_ids:
+            category_ids = category_ids.split(',')
+            queryset = queryset.filter(categories__id__in=category_ids).distinct()
+
+        # Если запрошены задачи без категорий
+        if include_no_category:
+            # Если уже есть фильтр по категориям - объединяем
+            if category_ids:
+                queryset = queryset | Task.objects.filter(is_deleted=False, categories__isnull=True)
+            else:
+                queryset = Task.objects.filter(is_deleted=False, categories__isnull=True)
+
         category_prefetch = Prefetch(
             'categories',
             queryset=TaskCategory.objects.only('name')
         )
+
         # Оптимизация связанных данных
         queryset = queryset.select_related(
             'author', 'last_editor', 'assignee', 'location'
         ).prefetch_related(
-            'dependencies',  'notifications',
+            'dependencies', 'notifications',
             'tags', 'links', 'attachments', category_prefetch
         )
 
@@ -157,22 +180,6 @@ class TaskViewSet(BaseViewSet):
                 ),
                 output_field=IntegerField(),
             )
-        )
-
-        # Аннотация зависимостей
-        return queryset.annotate(
-            total_dependencies=Count("dependencies", distinct=True),
-            completed_dependencies=Count(
-                "dependencies", distinct=True, filter=Q(dependencies__status="done")
-            ),
-            completed_dependencies_percentage=Case(
-                When(total_dependencies=0, then=100),
-                default=ExpressionWrapper(
-                    F("completed_dependencies") * 100 / F("total_dependencies"),
-                    output_field=IntegerField(),
-                ),
-                output_field=IntegerField(),
-            ),
         )
 
     def perform_create(self, serializer):
