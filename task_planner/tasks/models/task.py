@@ -10,7 +10,10 @@ from tasks.models.location import Location
 from tasks.models.notification_method import NotificationMethod
 from tasks.models.link import Link
 import json
-
+from django.dispatch import receiver
+from django.db.models.signals import post_save
+from django.db.models.signals import m2m_changed
+from django.db import transaction
 User = get_user_model()
 
 
@@ -61,7 +64,7 @@ class Task(models.Model):
         error_messages={"unique": "Задача с таким названием уже существует"},
         help_text="Уникальное название задачи (макс. 200 символов)",
         verbose_name="Название задачи",
-        db_index=True  # Индекс для частого поиска по названию
+        db_index=True
     )
     description = models.TextField(
         blank=True,
@@ -91,13 +94,20 @@ class Task(models.Model):
         verbose_name="Прогресс выполнения"
     )
 
+    progress_dependencies = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Прогресс выполнения в процентах (0-100%)",
+        verbose_name="Прогресс выполнения зависимостей"
+    )
+
     # Временные параметры
     created_at = models.DateTimeField(
         auto_now_add=True,
         editable=False,
         help_text="Автоматически устанавливается при создании задачи",
         verbose_name="Дата создания",
-        db_index=True  # Индекс для сортировки
+        db_index=True
     )
     updated_at = models.DateTimeField(
         auto_now=True,
@@ -121,7 +131,7 @@ class Task(models.Model):
         null=True,
         help_text="Крайний срок выполнения (дедлайн)",
         verbose_name="Дедлайн",
-        db_index=True  # Индекс для частых проверок дедлайнов
+        db_index=True
     )
     deleted_at = models.DateTimeField(
         blank=True,
@@ -326,11 +336,10 @@ class Task(models.Model):
     )
 
     def __str__(self):
-        """Строковое представление задачи в формате: Название (Статус)"""
         return f"{self.title} ({self.get_status_display()})"
 
     def clean(self):
-        """Расширенная валидация перед сохранением"""
+        """Валидация данных перед сохранением"""
         super().clean()
 
         # Валидация временных интервалов
@@ -344,12 +353,6 @@ class Task(models.Model):
                 {"deadline": "Дедлайн не может быть в прошлом для активной задачи"}
             )
 
-        # Проверка причины отмены
-        if self.status == "canceled" and not self.cancel_reason:
-            raise ValidationError(
-                {"cancel_reason": "Требуется указать причину отмены задачи"}
-            )
-
         # Валидация JSON-полей
         for field in ["reminders", "time_intervals"]:
             value = getattr(self, field)
@@ -359,17 +362,11 @@ class Task(models.Model):
                         raise ValidationError(
                             {field: "Значение должно быть списком"}
                         )
-                    json.dumps(value)  # Проверка сериализуемости
+                    json.dumps(value)
                 except (TypeError, ValueError):
                     raise ValidationError(
                         {field: "Некорректный JSON-формат"}
                     )
-
-        # Проверка прогресса при завершении
-        if self.status == "done" and self.progress < 100:
-            raise ValidationError(
-                {"progress": "Прогресс должен быть 100% для завершенной задачи"}
-            )
 
     def delete(self, *args, **kwargs):
         """
@@ -380,13 +377,12 @@ class Task(models.Model):
             self.deleted_at = timezone.now()
             self.status = "canceled"
             self.save()
-        return  # Возвращаемся без вызова super().delete()
+        return 
 
     def hard_delete(self, *args, **kwargs):
         """
         Полное удаление задачи из БД.
         """
-        # Вызываем оригинальный метод удаления
         super().delete(*args, **kwargs)
 
     def restore(self):
@@ -394,33 +390,70 @@ class Task(models.Model):
         if self.is_deleted:
             self.is_deleted = False
             self.deleted_at = None
-            self.status = "waiting"  # Сброс статуса при восстановлении
+            self.status = "waiting"
             self.save()
 
     def save(self, *args, **kwargs):
-        # Получаем текущий статус из БД перед сохранением (если запись уже существует)
+        """
+        Переопределенный метод сохранения с автоматическим:
+        1. Заполнением автора (при создании)
+        2. Обновлением последнего редактора
+        3. Автоматическим расчетом progress_dependencies
+        """
+        # Автоматическое заполнение автора и редактора
+        user = kwargs.pop('user', None)  # Пользователь должен передаваться из view
+
+        if not self.pk:
+            if user:
+                self.author = user
+        else:
+            if user:
+                self.last_editor = user
+        
+        super().save(*args, **kwargs)
+
         old_status = None
         if self.id:
             old_status = Task.objects.filter(id=self.id).values_list('status', flat=True).first()
 
-        # Сохраняем задачу
         super().save(*args, **kwargs)
 
-        # Проверяем изменение статуса на done/canceled
         if old_status != self.status and self.status in ['done', 'canceled']:
-            # Обрабатываем все задачи, зависящие от текущей
             for dependent_task in self.outgoing_dependencies.all():
-                # Проверяем все зависимости целевой задачи
                 all_deps_completed = True
                 for dep in dependent_task.dependencies.all():
                     if dep.status not in ['done', 'canceled']:
                         all_deps_completed = False
                         break
-
-                # Если все зависимости выполнены/отменены - обновляем флаг
                 if all_deps_completed and not dependent_task.is_ready:
                     dependent_task.is_ready = True
                     dependent_task.save()
+
+    def update_dependencies_progress(self):
+        """
+        Пересчитывает прогресс выполнения зависимостей:
+        - Считает % выполненных зависимостей
+        - Обновляет поле progress_dependencies
+        - Автоматически обновляет is_ready
+        """
+        dependencies = self.dependencies.all()
+        total_count = dependencies.count()
+        
+        if total_count == 0:
+            self.progress_dependencies = 100
+            self.is_ready = True
+        else:
+            completed_count = dependencies.filter(
+                status__in=['done', 'canceled']
+            ).count()
+            self.progress_dependencies = int((completed_count / total_count) * 100)
+            self.is_ready = (completed_count == total_count)
+        
+        self.save(update_fields=[
+            'progress_dependencies',
+            'is_ready',
+            'updated_at'
+        ])
 
     @property
     def is_overdue(self):
@@ -457,9 +490,58 @@ class Task(models.Model):
             models.Index(fields=["is_ready"]),
         ]
 
-        # Дополнительные параметры
         permissions = [
             ("can_approve_task", "Может подтверждать завершение задач"),
             ("can_assign_task", "Может назначать задачи другим пользователям"),
             ("can_restore_task", "Может восстанавливать удаленные задачи"),
         ]
+
+@receiver(post_save, sender=Task)
+def update_dependencies_on_status_change(sender, instance, **kwargs):
+    """
+    Обновляет прогресс зависимостей родительских задач при:
+    - Изменении статуса текущей задачи
+    - Создании/изменении зависимостей
+    """
+    update_fields = kwargs.get('update_fields', []) or []
+    
+    # Проверяем изменение статуса или создание новой задачи
+    if kwargs.get('created') or 'status' in update_fields:
+        # Обновляем все задачи, где текущая является зависимостью
+        for parent_task in instance.outgoing_dependencies.all():
+            parent_task.update_dependencies_progress()
+@receiver(post_save, sender=Task)
+def update_dependent_tasks(sender, instance, **kwargs):
+    """
+    Обновляет прогресс выполнения для всех задач, которые зависят от текущей
+    """
+    # Получаем все задачи, где текущая задача является зависимостью
+    dependent_tasks = Task.objects.filter(
+        dependencies=instance,
+        is_deleted=False
+    ).prefetch_related('dependencies').distinct()
+    
+    # Обновляем прогресс для каждой зависимой задачи
+    for task in dependent_tasks:
+        task.update_dependencies_progress()
+
+
+@receiver(m2m_changed, sender=Task.dependencies.through)
+def update_dependencies_on_change(sender, instance, action, **kwargs):
+    """
+    Обрабатывает изменения в зависимостях:
+    - При добавлении/удалении зависимостей
+    - При очистке зависимостей
+    """
+    if action in ['post_add', 'post_remove', 'post_clear']:
+        # Отложенное обновление через транзакцию
+        transaction.on_commit(
+            lambda: instance.update_dependencies_progress()
+        )
+        
+        # Если добавляются новые зависимости
+        if action == 'post_add' and kwargs.get('pk_set'):
+            # Обновляем задачи, которые были добавлены как зависимости
+            for dep_pk in kwargs['pk_set']:
+                dep_task = Task.objects.get(pk=dep_pk)
+                dep_task.update_dependencies_progress()

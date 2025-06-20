@@ -1,3 +1,4 @@
+from time import timezone
 from django.contrib import admin
 from django.utils.html import format_html
 from simple_history.admin import SimpleHistoryAdmin
@@ -12,6 +13,18 @@ from .models import (
 )
 from django.utils.translation import gettext_lazy as _
 from django import forms
+from django.contrib import messages
+from django.utils.html import escape
+from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
+from django.utils.text import Truncator
+from django.utils.safestring import mark_safe
+from django.db.models import Count
+from django.contrib.admin import SimpleListFilter
+from django.db import models
+
+
+
 
 @admin.register(TaskCategory)
 class TaskCategoryAdmin(admin.ModelAdmin):
@@ -163,79 +176,183 @@ class DependencyFilter(admin.SimpleListFilter):
             return queryset.filter(dependencies__isnull=True)
 
 
-# Кастомная форма для валидации задач
-class TaskAdminForm(forms.ModelForm):
-    class Meta:
-        model = Task
-        fields = '__all__'
-
-    def clean(self):
-        """
-        Валидация данных формы. Автоматически устанавливает прогресс 100%
-        при завершении задачи, если текущее значение отличается.
-        """
-        cleaned_data = super().clean()
-        status = cleaned_data.get('status')
-        progress = cleaned_data.get('progress')
-
-        if status == 'done' and progress != 100:
-            cleaned_data['progress'] = 100
-
-        return cleaned_data
 
 
+class DependencyFilter(SimpleListFilter):
+    """Фильтр по наличию зависимостей"""
+    title = _('Зависимости')
+    parameter_name = 'dependencies'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('with_deps', _('С зависимостями')),
+            ('without_deps', _('Без зависимостей')),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'with_deps':
+            return queryset.annotate(dep_count=Count('dependencies')).filter(dep_count__gt=0)
+        if self.value() == 'without_deps':
+            return queryset.annotate(dep_count=Count('dependencies')).filter(dep_count=0)
+        return queryset
+
+
+class ProgressFilter(SimpleListFilter):
+    """Фильтр по прогрессу выполнения"""
+    title = _('Прогресс выполнения')
+    parameter_name = 'progress'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('0-25', _('0-25%')),
+            ('25-50', _('25-50%')),
+            ('50-75', _('50-75%')),
+            ('75-100', _('75-100%')),
+            ('100', _('100% (Завершено)')),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == '0-25':
+            return queryset.filter(progress__range=(0, 25))
+        if value == '25-50':
+            return queryset.filter(progress__range=(25, 50))
+        if value == '50-75':
+            return queryset.filter(progress__range=(50, 75))
+        if value == '75-100':
+            return queryset.filter(progress__range=(75, 100))
+        if value == '100':
+            return queryset.filter(progress=100)
+        return queryset
+
+
+class TaskLinkInline(admin.TabularInline):
+    """Инлайн для связанных ссылок"""
+    model = TaskLink
+    extra = 1
+    fields = ['link', 'description']
+    verbose_name = _("Связанная ссылка")
+    verbose_name_plural = _("Связанные ссылки")
+
+
+class FileAttachmentInline(admin.TabularInline):
+    """Инлайн для прикрепленных файлов"""
+    model = FileAttachment
+    extra = 1
+    fields = ['file', 'description']
+    verbose_name = _("Прикрепленный файл")
+    verbose_name_plural = _("Прикрепленные файлы")
+
+
+
+
+
+class DependencyFilter(SimpleListFilter):
+    """Фильтр по наличию зависимостей"""
+    title = _('Зависимости')
+    parameter_name = 'dependencies'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('with_deps', _('С зависимостями')),
+            ('without_deps', _('Без зависимостей')),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'with_deps':
+            return queryset.annotate(dep_count=Count('dependencies')).filter(dep_count__gt=0)
+        if self.value() == 'without_deps':
+            return queryset.annotate(dep_count=Count('dependencies')).filter(dep_count=0)
+        return queryset
+
+
+class ProgressFilter(SimpleListFilter):
+    """Фильтр по прогрессу выполнения"""
+    title = _('Прогресс выполнения')
+    parameter_name = 'progress'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('0-25', _('0-25%')),
+            ('25-50', _('25-50%')),
+            ('50-75', _('50-75%')),
+            ('75-100', _('75-100%')),
+            ('100', _('100% (Завершено)')),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == '0-25':
+            return queryset.filter(progress__range=(0, 25))
+        if value == '25-50':
+            return queryset.filter(progress__range=(25, 50))
+        if value == '50-75':
+            return queryset.filter(progress__range=(50, 75))
+        if value == '75-100':
+            return queryset.filter(progress__range=(75, 100))
+        if value == '100':
+            return queryset.filter(progress=100)
+        return queryset
+
+
+class TaskLinkInline(admin.TabularInline):
+    """Инлайн для связанных ссылок"""
+    model = TaskLink
+    extra = 1
+    fields = ['link', 'description']
+    verbose_name = _("Связанная ссылка")
+    verbose_name_plural = _("Связанные ссылки")
+
+
+class FileAttachmentInline(admin.TabularInline):
+    """Инлайн для прикрепленных файлов"""
+    model = FileAttachment
+    extra = 1
+    fields = ['file', 'description']
+    verbose_name = _("Прикрепленный файл")
+    verbose_name_plural = _("Прикрепленные файлы")
 
 
 @admin.register(Task)
 class TaskAdmin(SimpleHistoryAdmin):
-    """Административный интерфейс для управления задачами с историей изменений"""
-    form = TaskAdminForm  # Используем кастомную форму валидации
-
+    """Административный интерфейс для управления задачами"""
     # Конфигурация отображения списка задач
     list_display = [
-        "id",
-        "title_short",
-        "status",
-        "progress_bar",
-        "priority",
-        "deadline",
-        "assignee_name",
-        "is_overdue",
-        "is_ready",
+        "id", "title_short", "status_badge", "progress_bar",
+        "priority", "formatted_deadline", "assignee_name",
+        "is_overdue_icon", "is_ready_icon", "dependencies_count"
     ]
     list_display_links = ["id", "title_short"]
     list_filter = [
-        "status",
-        "priority",
-        "risk_level",
-        "is_deleted",
-        "is_ready",
-        "is_recurring",
-        # DependencyFilter удален из-за отсутствия модуля
+        "status", "priority", "risk_level", "is_deleted",
+        "is_ready", "is_recurring", DependencyFilter, ProgressFilter,
+        ("categories", admin.RelatedOnlyFieldListFilter),
+        ("tags", admin.RelatedOnlyFieldListFilter),
     ]
-    search_fields = ["title", "description", "assignee__username"]
+    search_fields = [
+        "title", "description", "assignee__username", 
+        "assignee__email", "tags__name", "categories__name"
+    ]
     readonly_fields = [
-        "created_at",
-        "updated_at",
-        "deleted_at",
-        "version",
-        "outgoing_dependencies",
-        "is_overdue",
-        "progress_bar",
-        "is_deleted",
+        "created_at", "updated_at", "deleted_at", "version",
+        "outgoing_dependencies", "is_overdue", "progress_bar",
+        "is_deleted", "status_history"
     ]
     date_hierarchy = "deadline"
     filter_horizontal = ["dependencies", "categories", "notifications"]
-    raw_id_fields = ["author", "last_editor", "assignee"]
+    raw_id_fields = ["author", "last_editor", "assignee", "location"]
     inlines = [TaskLinkInline, FileAttachmentInline]
     actions = [
-        "mark_as_done",
-        "mark_as_canceled",
-        "soft_delete_tasks",
-        "hard_delete_tasks"
+        "mark_as_done", "mark_as_canceled", 
+        "soft_delete_tasks", "hard_delete_tasks"
     ]
     list_per_page = 25
+    list_select_related = ["assignee"]
     save_on_top = True
+    autocomplete_fields = ["tags"]
+    formfield_overrides = {
+        models.TextField: {'widget': forms.Textarea(attrs={'rows': 4, 'cols': 80})},
+    }
 
     # Группировка полей в интерфейсе редактирования
     fieldsets = (
@@ -293,150 +410,389 @@ class TaskAdmin(SimpleHistoryAdmin):
             "classes": ("collapse",),
         }),
         (_("Системная информация"), {
-            "fields": ("version", "cancel_reason"),
+            "fields": ("version", "cancel_reason", "status_history"),
             "classes": ("collapse",),
         }),
     )
 
+    @admin.display(description=_("Название"))
     def title_short(self, obj):
-        """Сокращает название задачи до 40 символов для отображения в списке"""
-        return obj.title[:40] + "..." if len(obj.title) > 40 else obj.title
-    title_short.short_description = _("Название")
+        """Сокращает название задачи для отображения в списке"""
+        return Truncator(obj.title).chars(40)
 
-    def progress_bar(self, obj):
-        """
-        Визуализирует прогресс выполнения задачи в виде цветной полосы.
-        Цвет зависит от статуса задачи.
-        """
-        color = {
-            "waiting": "gray",
+    @admin.display(description=_("Статус"))
+    def status_badge(self, obj):
+        """Отображает статус в виде цветного бейджа"""
+        status_colors = {
+            "waiting": "grey",
             "progress": "blue",
             "done": "green",
             "canceled": "red",
-        }.get(obj.status, "gray")
+            "pending_approval": "orange",
+        }
+        color = status_colors.get(obj.status, "grey")
+        return format_html(
+            '<span style="display:inline-block; padding:2px 8px; '
+            'border-radius:12px; background:{}; color:white">{}</span>',
+            color, obj.get_status_display()
+        )
+
+    @admin.display(description=_("Прогресс"))
+    def progress_bar(self, obj):
+        """Визуализирует прогресс выполнения в виде цветной полосы"""
+        color = {
+            "waiting": "#9e9e9e",
+            "progress": "#2196f3",
+            "done": "#4caf50",
+            "canceled": "#f44336",
+        }.get(obj.status, "#9e9e9e")
 
         return format_html(
-            '<div style="background:lightgray; width:100px; height:20px; border:1px solid #ccc;">'
-            '<div style="background:{1}; width:{0}%; height:100%;"></div>'
-            '</div> <span>{0}%</span>',
-            obj.progress,
-            color,
+            '<div class="progress-container" style="display:inline-block; width:100px; '
+            'background:#f5f5f5; height:20px; border:1px solid #ddd; margin-right:10px; '
+            'vertical-align:middle">'
+            '<div class="progress-bar" style="background:{}; width:{}%; height:100%;"></div>'
+            '</div>'
+            '<span style="vertical-align:middle">{}%</span>',
+            color, obj.progress, obj.progress
         )
-    progress_bar.short_description = _("Прогресс")
-    progress_bar.allow_tags = True
 
+    @admin.display(description=_("Исполнитель"))
     def assignee_name(self, obj):
         """Отображает имя исполнителя с ссылкой на его профиль"""
-        return format_html(
-            '<a href="/admin/auth/user/{}/change/">{}</a>',
-            obj.assignee.id,
-            obj.assignee.username,
-        ) if obj.assignee else "-"
-    assignee_name.short_description = _("Исполнитель")
+        if not obj.assignee:
+            return "-"
+        url = reverse('admin:auth_user_change', args=[obj.assignee.id])
+        return format_html('<a href="{}">{}</a>', url, obj.assignee.get_full_name() or obj.assignee.username)
 
-    def is_overdue(self, obj):
-        """Определяет, просрочена ли задача (булево значение)"""
+    @admin.display(description=_("Просрочена"), boolean=True)
+    def is_overdue_icon(self, obj):
+        """Иконка просроченной задачи"""
         return obj.is_overdue
-    is_overdue.short_description = _("Просрочена")
-    is_overdue.boolean = True
+
+    @admin.display(description=_("Готова"), boolean=True)
+    def is_ready_icon(self, obj):
+        """Иконка готовности задачи"""
+        return obj.is_ready
+
+    @admin.display(description=_("Дедлайн"), ordering="deadline")
+    def formatted_deadline(self, obj):
+        """Форматированное отображение дедлайна"""
+        if not obj.deadline:
+            return "-"
+        return obj.deadline.strftime("%d.%m.%Y %H:%M")
+
+    @admin.display(description=_("Зависимости"))
+    def dependencies_count(self, obj):
+        """Количество зависимостей с ссылками"""
+        count = obj.dependencies.count()
+        if not count:
+            return "-"
+        
+        url = (
+            reverse('admin:tasks_task_changelist') 
+            + f'?id__in={",".join(str(t.id) for t in obj.dependencies.all())}'
+        )
+        return format_html('<a href="{}">{} зависимостей</a>', url, count)
+
+    @admin.display(description=_("История статусов"))
+    def status_history(self, obj):
+        """История изменений статусов задачи"""
+        history = obj.history.order_by('-history_date').values_list('status', 'history_date')
+        if not history:
+            return "-"
+            
+        items = []
+        for status, date in history[:5]:  # Последние 5 изменений
+            items.append(f"<li>{date.strftime('%d.%m.%Y %H:%M')} - {status}</li>")
+        
+        return format_html("<ul>{}</ul>", mark_safe("".join(items)))
+
+    @admin.display(description=_("Исходящие зависимости"))
+    def outgoing_dependencies(self, obj):
+        """Список задач, зависящих от текущей"""
+        if not obj.pk:
+            return "-"
+            
+        deps = obj.dependent_tasks.all()
+        if not deps:
+            return "-"
+        
+        items = []
+        for t in deps:
+            url = reverse('admin:tasks_task_change', args=[t.id])
+            title = escape(Truncator(t.title).chars(30))
+            items.append(f'<li><a href="{url}">{title}</a></li>')
+        
+        return format_html("<ul>{}</ul>", mark_safe("".join(items)))
 
     def get_queryset(self, request):
-        """
-        Оптимизирует запросы с помощью:
-        - select_related для ForeignKey полей
-        - prefetch_related для ManyToMany полей
-        - defer для отложенной загрузки тяжелых полей
-        """
-        return (
-            super()
-            .get_queryset(request)
-            .select_related("author", "last_editor", "assignee", "location")
-            .prefetch_related("dependencies", "categories", "notifications", "tags")
-            .defer("description", "time_intervals", "reminders")
+        """Оптимизированный запрос для админки"""
+        qs = super().get_queryset(request)
+        return qs.select_related(
+            "author", "last_editor", "assignee", "location"
+        ).prefetch_related(
+            "dependencies", "categories", "notifications", "tags", "dependent_tasks"
+        ).annotate(
+            dependencies_count=Count('dependencies')
+        ).defer(
+            "description", "time_intervals", "reminders", "cancel_reason"
         )
 
-    def outgoing_dependencies(self, obj):
-        """Отображает список исходящих зависимостей в виде HTML-списка"""
-        deps = obj.dependent_tasks.all()
-        return format_html(
-            "<ul>{}</ul>",
-            "".join(f'<li><a href="/admin/tasks/task/{t.id}/change/">{t.title}</a></li>' for t in deps)
-        ) if deps else "-"
-    outgoing_dependencies.short_description = _("Исходящие зависимости")
-
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        """Фильтрует зависимости, исключая удаленные задачи"""
+        """Фильтрация зависимостей"""
         if db_field.name == "dependencies":
-            kwargs["queryset"] = Task.objects.filter(is_deleted=False)
+            # Исключаем удаленные задачи и текущую задачу
+            exclude_id = request.resolver_match.kwargs.get('object_id')
+            qs = Task.objects.filter(is_deleted=False)
+            if exclude_id:
+                qs = qs.exclude(id=exclude_id)
+            kwargs["queryset"] = qs
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        """Переопределяет виджет для полей-связей на пользователей"""
-        if db_field.name in ["author", "assignee", "last_editor"]:
-            return db_field.formfield(**kwargs)
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+    def get_readonly_fields(self, request, obj=None):
+        """Динамически определяем поля только для чтения"""
+        fields = list(super().get_readonly_fields(request, obj))
+        if not obj:  # Для новых объектов
+            fields = [f for f in fields if f != "outgoing_dependencies"]
+        return fields
+
+    def get_exclude(self, request, obj=None):
+        """Скрываем технические поля при создании"""
+        if obj is None:
+            return ["is_deleted", "deleted_at", "version"]
+        return super().get_exclude(request, obj)
 
     # Действия администратора
+    @admin.action(description=_("Пометить как выполненные"))
     def mark_as_done(self, request, queryset):
-        """Помечает выбранные задачи как выполненные (статус: done, прогресс: 100%)"""
-        updated = queryset.update(status="done", progress=100)
-        self.message_user(request, f"{updated} {_('задач помечены как выполненные')}")
-    mark_as_done.short_description = _("Пометить как выполненные")
+        """Помечает задачи как выполненные"""
+        tasks = list(queryset)
+        for task in tasks:
+            task.status = "done"
+            task.progress = 100
+            if not task.end_date:
+                task.end_date = timezone.now()
+        
+        Task.objects.bulk_update(tasks, ['status', 'progress', 'end_date'])
+        self.message_user(
+            request, 
+            f"Помечено как выполненные: {len(tasks)} задач", 
+            messages.SUCCESS
+        )
 
+    @admin.action(description=_("Пометить как отмененные"))
     def mark_as_canceled(self, request, queryset):
-        """Помечает выбранные задачи как отмененные с указанием причины"""
-        for task in queryset:
+        """Помечает задачи как отмененные"""
+        tasks = list(queryset)
+        for task in tasks:
             if not task.cancel_reason:
                 task.cancel_reason = _("Отменено администратором")
             task.status = "canceled"
-            task.save()
-        self.message_user(request, f"{queryset.count()} {_('задач помечены как отмененные')}")
-    mark_as_canceled.short_description = _("Пометить как отмененные")
+        
+        Task.objects.bulk_update(tasks, ['status', 'cancel_reason'])
+        self.message_user(
+            request, 
+            f"Помечено как отмененные: {len(tasks)} задач", 
+            messages.SUCCESS
+        )
 
+    @admin.action(description=_("Мягкое удаление"))
     def soft_delete_tasks(self, request, queryset):
-        """Выполняет мягкое удаление выбранных задач (помечает is_deleted=True)"""
-        for task in queryset:
-            task.delete()  # Использует кастомный метод delete модели
-        self.message_user(request, f"{queryset.count()} {_('задач помечены как удаленные')}")
-    soft_delete_tasks.short_description = _("Мягкое удаление")
-
-    def hard_delete_tasks(self, request, queryset):
-        """Действие: полное удаление задач из БД"""
+        """Мягкое удаление задач"""
         count = 0
         for task in queryset:
-            # Вызываем метод hard_delete модели
+            task.delete()  # Использует кастомный метод delete модели
+            count += 1
+        self.message_user(
+            request, 
+            f"Мягко удалено: {count} задач", 
+            messages.WARNING
+        )
+
+    @admin.action(description=_("Полное удаление"))
+    def hard_delete_tasks(self, request, queryset):
+        """Полное удаление из БД"""
+        if not request.user.is_superuser:
+            self.message_user(
+                request, 
+                "Только суперпользователи могут полностью удалять задачи", 
+                messages.ERROR
+            )
+            return
+
+        count = 0
+        for task in queryset:
             task.hard_delete()
             count += 1
-        self.message_user(request, f"Полностью удалено {count} задач")
-
-    hard_delete_tasks.short_description = _("Полное удаление выбранных задач")
+            
+        self.message_user(
+            request, 
+            f"Полностью удалено: {count} задач", 
+            messages.SUCCESS
+        )
 
     def save_model(self, request, obj, form, change):
-        """
-        Обрабатывает сохранение модели:
-        1. Устанавливает автора при создании
-        2. Обновляет последнего редактора
-        3. Автоматически выставляет прогресс 100% для завершенных задач
-        """
-        if not obj.pk:
+        """Обработка сохранения модели"""
+        if not change:  # Новая задача
             obj.author = request.user
-
+            if not obj.start_date and obj.status == "progress":
+                obj.start_date = timezone.now()
+        
         obj.last_editor = request.user
-
+        
+        # Автоматическая коррекция прогресса
         if obj.status == "done" and obj.progress < 100:
             obj.progress = 100
-
+            if not obj.end_date:
+                obj.end_date = timezone.now()
+        
         super().save_model(request, obj, form, change)
 
     def get_actions(self, request):
-        """Удаляет стандартное действие удаления из списка действий"""
+        """Удаляем стандартное действие удаления"""
         actions = super().get_actions(request)
         actions.pop('delete_selected', None)
         return actions
 
-    def get_exclude(self, request, obj=None):
-        """Скрывает технические поля при создании новой задачи"""
-        return ["is_deleted", "deleted_at", "history"] if obj is None else super().get_exclude(request, obj)
+    class Media:
+        """Кастомные стили для админки"""
+        css = {
+            'all': (
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+                'admin/css/task_admin.css',
+            )
+        }
+    def get_fieldsets(self, request, obj=None):
+        """Динамически формируем fieldsets в зависимости от типа операции (создание/редактирование)"""
+        base_fieldsets = [
+            (_("Основная информация"), {
+                "fields": (
+                    "title",
+                    "description",
+                    "status",
+                    "progress",
+                    "progress_bar",
+                    "dependencies",
+                ) + (("outgoing_dependencies",) if obj else ())  # Только для существующих объектов
+            }),
+            (_("Категории и метаданные"), {
+                "fields": ("priority", "categories", "location", "tags"),
+                "classes": ("collapse",),
+            }),
+            (_("Ответственные лица"), {
+                "fields": ("author", "assignee", "last_editor")
+            }),
+            (_("Временные параметры"), {
+                "fields": (
+                    ("start_date", "end_date"),
+                    "deadline",
+                    ("created_at", "updated_at", "deleted_at"),
+                    "is_overdue",
+                )
+            }),
+            (_("Дополнительные параметры"), {
+                "fields": (
+                    "complexity",
+                    "risk_level",
+                    "estimated_time",
+                    "actual_time",
+                    "budget",
+                    "quality_rating",
+                    "time_intervals",
+                    "reminders",
+                ),
+                "classes": ("collapse",),
+            }),
+            (_("Флаги состояния"), {
+                "fields": (
+                    "is_ready",
+                    "is_recurring",
+                    "needs_approval",
+                    "is_template",
+                    "is_deleted",
+                ),
+                "classes": ("collapse",),
+            }),
+            (_("Повторение и уведомления"), {
+                "fields": ("repeat_interval", "next_activation", "notifications"),
+                "classes": ("collapse",),
+            }),
+            (_("Системная информация"), {
+                "fields": ("version", "cancel_reason", "status_history"),
+                "classes": ("collapse",),
+            }),
+        ]
+        
+        # Для новых объектов скрываем дополнительные системные поля
+        if not obj:
+            base_fieldsets = [
+                (_("Основная информация"), {
+                    "fields": (
+                        "title",
+                        "description",
+                        "status",
+                        "progress",
+                        "dependencies",
+                    )
+                }),
+                (_("Категории и метаданные"), {
+                    "fields": ("priority", "categories", "location", "tags"),
+                    "classes": ("collapse",),
+                }),
+                (_("Ответственные лица"), {
+                    "fields": ("assignee",)  # Автор установится автоматически
+                }),
+                (_("Временные параметры"), {
+                    "fields": (
+                        ("start_date", "end_date"),
+                        "deadline",
+                    )
+                }),
+                (_("Дополнительные параметры"), {
+                    "fields": (
+                        "complexity",
+                        "risk_level",
+                        "estimated_time",
+                        "budget",
+                    ),
+                    "classes": ("collapse",),
+                }),
+                (_("Флаги состояния"), {
+                    "fields": (
+                        "is_ready",
+                        "is_recurring",
+                        "needs_approval",
+                        "is_template",
+                    ),
+                    "classes": ("collapse",),
+                }),
+                (_("Повторение и уведомления"), {
+                    "fields": ("repeat_interval", "next_activation", "notifications"),
+                    "classes": ("collapse",),
+                }),
+            ]
+        return base_fieldsets
+
+    def get_readonly_fields(self, request, obj=None):
+        """Динамически определяем поля только для чтения"""
+        readonly = list(super().get_readonly_fields(request, obj))
+        
+        # Для новых объектов
+        if not obj:
+            readonly = []
+        # Для существующих объектов
+        else:
+            readonly += [
+                "created_at", "updated_at", "deleted_at", "version",
+                "outgoing_dependencies", "is_overdue", "progress_bar",
+                "is_deleted", "status_history", "author", "last_editor"
+            ]
+        
+        return readonly
+
+
+
 
 
 @admin.register(TaskLink)

@@ -68,9 +68,8 @@ class FileAttachmentSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    progress = serializers.IntegerField(min_value=0, max_value=100)
-    is_ready = serializers.BooleanField()
-
+    # Убрана явная валидация progress - она уже есть в модели
+    # is_ready сделано read_only (вычисляется автоматически)
     category_names = serializers.SerializerMethodField(
         help_text="Названия категорий задачи"
     )
@@ -81,37 +80,80 @@ class TaskSerializer(serializers.ModelSerializer):
 
     author = UserSerializer(read_only=True)
     last_editor = UserSerializer(read_only=True)
+    
     assignee = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), allow_null=True
+        queryset=User.objects.all(),
+        allow_null=True,
+        required=False,
+        help_text="ID исполнителя задачи"
     )
+    
     location = serializers.PrimaryKeyRelatedField(
-        queryset=Location.objects.all(), allow_null=True
+        queryset=Location.objects.all(),
+        allow_null=True,
+        required=False,
+        help_text="ID местоположения"
     )
 
     dependencies = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=Task.objects.all()
+        many=True,
+        queryset=Task.objects.only('id'),
+        required=False
     )
+    
     categories = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=TaskCategory.objects.all()
+        many=True,
+        queryset=TaskCategory.objects.only('id'),
+        required=False
     )
+    
     notifications = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=NotificationMethod.objects.all()
+        many=True,
+        queryset=NotificationMethod.objects.only('id'),
+        required=False
     )
+    
     links = TaskLinkSerializer(many=True, read_only=True)
     attachments = FileAttachmentSerializer(many=True, read_only=True)
 
-    status = serializers.ChoiceField(choices=Task.STATUS_CHOICES)
-    risk_level = serializers.ChoiceField(choices=Task.RISK_LEVEL_CHOICES)
-
-    completed_dependencies_percentage = serializers.IntegerField(
-        read_only=True,
-        help_text="Процент выполненных зависимых задач (только для чтения)",
+    status = serializers.ChoiceField(
+        choices=Task.STATUS_CHOICES,
+        required=False
     )
+    risk_level = serializers.ChoiceField(
+        choices=Task.RISK_LEVEL_CHOICES,
+        required=False
+    )
+
+    progress_dependencies = serializers.IntegerField(
+        read_only=True,
+        min_value=0,
+        max_value=100,
+        help_text="Прогресс выполнения зависимостей в %"
+    )
+    
     tags = serializers.SerializerMethodField(help_text="Список тегов задачи")
 
     def get_tags(self, obj):
-        """Возвращает список названий тегов вместо менеджера тегов"""
         return list(obj.tags.names())
+
+    tag_list = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        write_only=True,
+        required=False,
+        help_text="Список тегов для добавления (только запись)"
+    )
+
+    is_overdue = serializers.BooleanField(
+        read_only=True,
+        help_text="Просрочена ли задача"
+    )
+    
+    outgoing_dependencies = serializers.PrimaryKeyRelatedField(
+        many=True,
+        read_only=True,
+        help_text="ID задач, зависящих от этой"
+    )
 
     class Meta:
         model = Task
@@ -122,6 +164,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "priority",
             "status",
             "progress",
+            "progress_dependencies",
             "created_at",
             "updated_at",
             "start_date",
@@ -150,11 +193,15 @@ class TaskSerializer(serializers.ModelSerializer):
             "repeat_interval",
             "next_activation",
             "tags",
+            "tag_list",
             "notifications",
             "links",
             "attachments",
-            "completed_dependencies_percentage",
             "category_names",
+            "is_overdue",
+            "outgoing_dependencies",
+            "is_deleted",
+            "deleted_at",
         ]
         read_only_fields = [
             "id",
@@ -162,40 +209,63 @@ class TaskSerializer(serializers.ModelSerializer):
             "updated_at",
             "deleted_at",
             "version",
-            "is_deleted",
             "author",
             "last_editor",
             "attachments",
             "history",
-            "completed_dependencies_percentage",
+            "progress_dependencies",
             "tags",
+            "is_ready",
+            "is_overdue",
+            "outgoing_dependencies",
+            "is_deleted",
         ]
 
     def create(self, validated_data):
+        """Создание задачи с обработкой связей и тегов"""
         dependencies = validated_data.pop("dependencies", [])
         categories = validated_data.pop("categories", [])
         notifications = validated_data.pop("notifications", [])
+        tag_list = validated_data.pop("tag_list", [])
 
-        task = Task.objects.create(**validated_data)
+        user = self.context['request'].user
+        
+        task = Task.objects.create(
+            **validated_data,
+            author=user,
+            last_editor=user
+        )
+        
         task.dependencies.set(dependencies)
         task.categories.set(categories)
         task.notifications.set(notifications)
+        
+        if tag_list:
+            task.tags.set(tag_list)
+            
         return task
 
     def update(self, instance, validated_data):
+        """Обновление задачи с обработкой связей и тегов"""
         dependencies = validated_data.pop("dependencies", None)
         categories = validated_data.pop("categories", None)
         notifications = validated_data.pop("notifications", None)
+        tag_list = validated_data.pop("tag_list", None)
 
+        user = self.context['request'].user
+        validated_data['last_editor'] = user
+        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-
+        
         if dependencies is not None:
             instance.dependencies.set(dependencies)
         if categories is not None:
             instance.categories.set(categories)
         if notifications is not None:
             instance.notifications.set(notifications)
+        if tag_list is not None:
+            instance.tags.set(tag_list)
 
         instance.save()
         return instance
